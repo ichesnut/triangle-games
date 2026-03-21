@@ -92,13 +92,32 @@ router.get('/next', requireAuth, (req, res) => {
     return res.status(404).json({ error: 'No challenges found for this category' });
   }
 
-  // Generate multiple-choice options
+  // For puzzle-type challenges, return board data instead of multiple-choice options
+  if (challenge.type === 'puzzle') {
+    const data = JSON.parse(
+      db.prepare('SELECT data FROM challenges WHERE id = ?').get(challenge.id).data
+    );
+    return res.json({
+      challenge: {
+        id: challenge.id,
+        category: challenge.categorySlug,
+        type: 'puzzle',
+        difficulty: challenge.difficulty,
+        prompt: challenge.prompt,
+        reward: challenge.chesnutReward,
+        fen: data.fen,
+      },
+    });
+  }
+
+  // Generate multiple-choice options for question-type challenges
   const options = generateOptions(challenge.id, category);
 
   res.json({
     challenge: {
       id: challenge.id,
       category: challenge.categorySlug,
+      type: 'question',
       difficulty: challenge.difficulty,
       prompt: challenge.prompt,
       reward: challenge.chesnutReward,

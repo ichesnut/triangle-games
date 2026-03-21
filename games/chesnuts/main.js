@@ -5,6 +5,148 @@ let currentUser = null;
 let currentCategory = null;
 let currentChallenge = null;
 
+// Chess board state
+let chessBoardCanvas = null;
+let chessBoardCtx = null;
+let chessBoard = []; // 8x8 array of piece chars or null
+let selectedSquare = null; // { row, col } of currently selected piece
+let chessTurn = 'w'; // whose turn it is from FEN
+
+// Unicode chess pieces
+const PIECE_CHARS = {
+  K: '\u2654', Q: '\u2655', R: '\u2656', B: '\u2657', N: '\u2658', P: '\u2659',
+  k: '\u265A', q: '\u265B', r: '\u265C', b: '\u265D', n: '\u265E', p: '\u265F',
+};
+
+// Parse FEN string into an 8x8 board array
+function parseFEN(fen) {
+  const parts = fen.split(' ');
+  const rows = parts[0].split('/');
+  const board = [];
+  for (const row of rows) {
+    const boardRow = [];
+    for (const ch of row) {
+      if (ch >= '1' && ch <= '8') {
+        for (let i = 0; i < parseInt(ch); i++) boardRow.push(null);
+      } else {
+        boardRow.push(ch);
+      }
+    }
+    board.push(boardRow);
+  }
+  return { board, turn: parts[1] || 'w' };
+}
+
+// Convert row,col to UCI square name (e.g. 0,0 -> "a8", 7,7 -> "h1")
+function squareToUCI(row, col) {
+  return String.fromCharCode(97 + col) + (8 - row);
+}
+
+// Draw the chess board on canvas
+function drawChessBoard() {
+  if (!chessBoardCanvas || !chessBoardCtx) return;
+  const ctx = chessBoardCtx;
+  const dpr = window.devicePixelRatio || 1;
+  const size = chessBoardCanvas.clientWidth;
+  chessBoardCanvas.width = size * dpr;
+  chessBoardCanvas.height = size * dpr;
+  ctx.scale(dpr, dpr);
+
+  const sq = size / 8;
+  const lightColor = '#f0d9b5';
+  const darkColor = '#b58863';
+  const selectColor = 'rgba(255, 255, 80, 0.5)';
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      // Square color
+      ctx.fillStyle = (r + c) % 2 === 0 ? lightColor : darkColor;
+      ctx.fillRect(c * sq, r * sq, sq, sq);
+
+      // Highlight selected square
+      if (selectedSquare && selectedSquare.row === r && selectedSquare.col === c) {
+        ctx.fillStyle = selectColor;
+        ctx.fillRect(c * sq, r * sq, sq, sq);
+      }
+
+      // Draw piece
+      const piece = chessBoard[r] && chessBoard[r][c];
+      if (piece) {
+        ctx.fillStyle = '#000';
+        ctx.font = `${sq * 0.75}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(PIECE_CHARS[piece], c * sq + sq / 2, r * sq + sq / 2 + sq * 0.03);
+      }
+    }
+  }
+
+  // Draw file/rank labels
+  ctx.font = `${sq * 0.18}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let c = 0; c < 8; c++) {
+    ctx.fillStyle = c % 2 === 0 ? darkColor : lightColor;
+    ctx.fillText(String.fromCharCode(97 + c), c * sq + sq / 2, 8 * sq - sq * 0.1);
+  }
+  for (let r = 0; r < 8; r++) {
+    ctx.fillStyle = r % 2 === 0 ? lightColor : darkColor;
+    ctx.fillText(String(8 - r), sq * 0.12, r * sq + sq / 2);
+  }
+}
+
+// Handle tap/click on chess board
+function handleBoardClick(e) {
+  if (!chessBoardCanvas) return;
+  const rect = chessBoardCanvas.getBoundingClientRect();
+  const x = (e.clientX || e.touches[0].clientX) - rect.left;
+  const y = (e.clientY || e.touches[0].clientY) - rect.top;
+  const sq = rect.width / 8;
+  const col = Math.floor(x / sq);
+  const row = Math.floor(y / sq);
+
+  if (row < 0 || row > 7 || col < 0 || col > 7) return;
+
+  const piece = chessBoard[row] && chessBoard[row][col];
+
+  if (selectedSquare) {
+    // Second tap — try to make a move
+    const from = selectedSquare;
+
+    if (from.row === row && from.col === col) {
+      // Tapped same square — deselect
+      selectedSquare = null;
+      drawChessBoard();
+      return;
+    }
+
+    // If tapped own piece, reselect it instead
+    if (piece && isOwnPiece(piece)) {
+      selectedSquare = { row, col };
+      drawChessBoard();
+      return;
+    }
+
+    // Submit the move
+    const uci = squareToUCI(from.row, from.col) + squareToUCI(row, col);
+    selectedSquare = null;
+    drawChessBoard();
+    submitAnswer(uci);
+  } else {
+    // First tap — select a piece
+    if (piece && isOwnPiece(piece)) {
+      selectedSquare = { row, col };
+      drawChessBoard();
+    }
+  }
+}
+
+// Check if piece belongs to the side to move
+function isOwnPiece(piece) {
+  if (chessTurn === 'w') return piece === piece.toUpperCase();
+  return piece === piece.toLowerCase();
+}
+
 async function fetchCsrf() {
   const res = await fetch(`${API}/csrf-token`);
   const data = await res.json();
@@ -184,8 +326,11 @@ async function startPlaying(slug, name) {
 async function loadNextQuestion() {
   const questionCard = document.getElementById('question-card');
   const resultCard = document.getElementById('result-card');
+  const boardContainer = document.getElementById('chess-board-container');
   resultCard.classList.remove('active');
   questionCard.style.display = '';
+  boardContainer.style.display = 'none';
+  selectedSquare = null;
 
   document.getElementById('q-prompt').textContent = 'Loading...';
   document.getElementById('q-options').innerHTML = '';
@@ -206,16 +351,36 @@ async function loadNextQuestion() {
     // Set prompt
     document.getElementById('q-prompt').textContent = data.challenge.prompt;
 
-    // Build option buttons
-    const optionsGrid = document.getElementById('q-options');
-    optionsGrid.innerHTML = '';
+    if (data.challenge.type === 'puzzle') {
+      // Chess puzzle — show the board
+      document.getElementById('q-options').innerHTML = '';
+      boardContainer.style.display = 'block';
 
-    for (const option of data.challenge.options) {
-      const btn = document.createElement('button');
-      btn.className = 'option-btn';
-      btn.textContent = option;
-      btn.addEventListener('click', () => submitAnswer(option));
-      optionsGrid.appendChild(btn);
+      // Parse FEN and draw board
+      const parsed = parseFEN(data.challenge.fen);
+      chessBoard = parsed.board;
+      chessTurn = parsed.turn;
+
+      // Init canvas if needed
+      chessBoardCanvas = document.getElementById('chess-canvas');
+      chessBoardCtx = chessBoardCanvas.getContext('2d');
+      drawChessBoard();
+
+      // Show instruction text
+      document.getElementById('chess-instruction').textContent =
+        'Tap a piece, then tap the destination square.';
+    } else {
+      // Multiple-choice question
+      const optionsGrid = document.getElementById('q-options');
+      optionsGrid.innerHTML = '';
+
+      for (const option of data.challenge.options) {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.textContent = option;
+        btn.addEventListener('click', () => submitAnswer(option));
+        optionsGrid.appendChild(btn);
+      }
     }
   } catch (err) {
     document.getElementById('q-prompt').textContent = `Error: ${err.message}`;
@@ -223,9 +388,16 @@ async function loadNextQuestion() {
 }
 
 async function submitAnswer(answer) {
-  // Disable all option buttons immediately
+  const isPuzzle = currentChallenge.type === 'puzzle';
+
+  // Disable all option buttons immediately (for question type)
   const buttons = document.querySelectorAll('.option-btn');
   buttons.forEach(b => b.disabled = true);
+
+  // For puzzles, disable board interaction
+  if (isPuzzle && chessBoardCanvas) {
+    chessBoardCanvas.style.pointerEvents = 'none';
+  }
 
   try {
     const data = await api('/challenges/answer', {
@@ -236,14 +408,26 @@ async function submitAnswer(answer) {
       }),
     });
 
-    // Highlight correct/wrong options
-    buttons.forEach(btn => {
-      if (btn.textContent === data.correctAnswer) {
-        btn.classList.add(data.correct ? 'correct' : 'reveal');
-      } else if (btn.textContent === answer && !data.correct) {
-        btn.classList.add('wrong');
+    if (!isPuzzle) {
+      // Highlight correct/wrong options for question type
+      buttons.forEach(btn => {
+        if (btn.textContent === data.correctAnswer) {
+          btn.classList.add(data.correct ? 'correct' : 'reveal');
+        } else if (btn.textContent === answer && !data.correct) {
+          btn.classList.add('wrong');
+        }
+      });
+    } else {
+      // For puzzles, update the instruction text with result
+      const instruction = document.getElementById('chess-instruction');
+      if (data.correct) {
+        instruction.textContent = 'Correct!';
+        instruction.style.color = '#b7e4c7';
+      } else {
+        instruction.textContent = `The correct move was: ${data.correctAnswer}`;
+        instruction.style.color = '#fcd5ce';
       }
-    });
+    }
 
     // Update user stats
     updateDashboardStats(data.user);
@@ -251,6 +435,7 @@ async function submitAnswer(answer) {
     // Show result card after a brief delay
     setTimeout(() => {
       document.getElementById('question-card').style.display = 'none';
+      document.getElementById('chess-board-container').style.display = 'none';
       const resultCard = document.getElementById('result-card');
       resultCard.classList.add('active');
 
@@ -259,7 +444,10 @@ async function submitAnswer(answer) {
         document.getElementById('r-text').textContent = 'Correct!';
       } else {
         document.getElementById('r-emoji').textContent = '\u274C';
-        document.getElementById('r-text').textContent = `The answer was: ${data.correctAnswer}`;
+        const answerText = isPuzzle
+          ? `The correct move was: ${data.correctAnswer}`
+          : `The answer was: ${data.correctAnswer}`;
+        document.getElementById('r-text').textContent = answerText;
       }
 
       let earningsText = `+${data.chesnutsEarned} Chesnut${data.chesnutsEarned !== 1 ? 's' : ''}`;
@@ -279,10 +467,19 @@ async function submitAnswer(answer) {
       } else {
         banner.classList.remove('active');
       }
-    }, 600);
+
+      // Re-enable board interaction for next puzzle
+      if (chessBoardCanvas) {
+        chessBoardCanvas.style.pointerEvents = '';
+        document.getElementById('chess-instruction').style.color = '';
+      }
+    }, isPuzzle ? 1200 : 600);
 
   } catch (err) {
     buttons.forEach(b => b.disabled = false);
+    if (isPuzzle && chessBoardCanvas) {
+      chessBoardCanvas.style.pointerEvents = '';
+    }
     alert(err.message);
   }
 }
@@ -381,6 +578,15 @@ function escapeHtml(text) {
 async function init() {
   try {
     await fetchCsrf();
+
+    // Set up chess board click handler
+    const canvas = document.getElementById('chess-canvas');
+    canvas.addEventListener('click', handleBoardClick);
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      handleBoardClick(e);
+    }, { passive: false });
+
     const data = await api('/me');
     if (data.user) {
       showDashboard(data.user);

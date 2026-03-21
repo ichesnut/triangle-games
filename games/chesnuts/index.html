@@ -344,6 +344,29 @@
     .option-btn.wrong { border-color: #9b2226; background: #3d1a1e; color: #fcd5ce; }
     .option-btn.reveal { border-color: #2d6a4f; background: #1a3d2e; color: #b7e4c7; }
 
+    /* Chess board */
+    .chess-board-container {
+      display: none;
+      width: 100%;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    .chess-canvas {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      cursor: pointer;
+      touch-action: none;
+    }
+
+    .chess-instruction {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #888;
+      margin-top: 0.75rem;
+    }
+
     /* Result feedback */
     .result-card {
       display: none;
@@ -568,6 +591,11 @@
       </div>
       <div class="question-prompt" id="q-prompt">Loading...</div>
       <div class="options-grid" id="q-options"></div>
+    </div>
+
+    <div id="chess-board-container" class="chess-board-container">
+      <canvas id="chess-canvas" class="chess-canvas"></canvas>
+      <div id="chess-instruction" class="chess-instruction"></div>
     </div>
 
     <div id="result-card" class="result-card">
