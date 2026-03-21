@@ -27,4 +27,34 @@ db.exec(`
   )
 `);
 
+// Challenge data table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS challenges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    categorySlug TEXT NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('question', 'puzzle')),
+    difficulty TEXT NOT NULL CHECK(difficulty IN ('easy', 'medium', 'hard')),
+    prompt TEXT NOT NULL,
+    data TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    chesnutReward INTEGER NOT NULL
+  )
+`);
+
+// Attempt history table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS attempt_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL REFERENCES users(id),
+    challengeId INTEGER NOT NULL REFERENCES challenges(id),
+    correct INTEGER NOT NULL DEFAULT 0,
+    chesnutsEarned INTEGER NOT NULL DEFAULT 0,
+    answeredAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+// Index for fast lookups
+db.exec(`CREATE INDEX IF NOT EXISTS idx_attempts_user ON attempt_history(userId)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_challenges_category ON challenges(categorySlug)`);
+
 export default db;

@@ -202,18 +202,257 @@
       letter-spacing: 0.05em;
     }
 
-    .coming-soon {
-      background: #16213e;
-      border-radius: 14px;
-      padding: 2rem;
-      text-align: center;
-      color: #666;
+    /* Action buttons on dashboard */
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
     }
 
-    .coming-soon h3 {
-      color: #aaa;
+    .action-btn {
+      padding: 1.25rem 1rem;
+      border: none;
+      border-radius: 14px;
+      background: #16213e;
+      color: #eee;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .action-btn:active { transform: scale(0.97); }
+    .action-btn.primary { background: #e94560; color: #fff; }
+    .action-btn .action-icon { font-size: 1.5rem; display: block; margin-bottom: 0.3rem; }
+
+    /* Category selection */
+    .category-screen, .play-screen, .history-screen {
+      display: none;
+      width: 100%;
+      max-width: 480px;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .category-screen.active, .play-screen.active, .history-screen.active {
+      display: flex;
+    }
+
+    .screen-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
       margin-bottom: 0.5rem;
     }
+
+    .back-btn {
+      padding: 0.4rem 0.8rem;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: transparent;
+      color: #888;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .back-btn:hover { color: #e94560; border-color: #e94560; }
+
+    .screen-header h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+    }
+
+    .category-card {
+      background: #16213e;
+      border-radius: 14px;
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .category-card:active { transform: scale(0.98); }
+    .category-card:hover { background: #1a2744; }
+
+    .category-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.3rem;
+    }
+
+    .category-card .category-meta {
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    /* Play screen */
+    .question-card {
+      background: #16213e;
+      border-radius: 14px;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .question-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    .difficulty-badge {
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+
+    .difficulty-easy { background: #2d6a4f; color: #b7e4c7; }
+    .difficulty-medium { background: #e76f51; color: #fce4d6; }
+    .difficulty-hard { background: #9b2226; color: #fcd5ce; }
+
+    .question-prompt {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      line-height: 1.4;
+    }
+
+    .options-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .option-btn {
+      padding: 0.9rem 1rem;
+      border: 2px solid #2a2a4a;
+      border-radius: 12px;
+      background: #0f1129;
+      color: #eee;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      text-align: left;
+    }
+
+    .option-btn:hover:not(:disabled) { border-color: #e94560; }
+    .option-btn:disabled { cursor: default; }
+    .option-btn.correct { border-color: #2d6a4f; background: #1a3d2e; color: #b7e4c7; }
+    .option-btn.wrong { border-color: #9b2226; background: #3d1a1e; color: #fcd5ce; }
+    .option-btn.reveal { border-color: #2d6a4f; background: #1a3d2e; color: #b7e4c7; }
+
+    /* Result feedback */
+    .result-card {
+      display: none;
+      background: #16213e;
+      border-radius: 14px;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .result-card.active { display: block; }
+
+    .result-emoji { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .result-text { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.3rem; }
+    .result-earnings { color: #e94560; font-size: 0.95rem; margin-bottom: 0.2rem; }
+    .result-streak { color: #888; font-size: 0.85rem; }
+
+    .next-btn {
+      margin-top: 1rem;
+      padding: 0.85rem 2rem;
+      border: none;
+      border-radius: 10px;
+      background: #e94560;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .next-btn:active { opacity: 0.8; }
+
+    /* Streak banner */
+    .streak-banner {
+      display: none;
+      background: linear-gradient(135deg, #e94560, #c0392b);
+      border-radius: 14px;
+      padding: 1rem;
+      text-align: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+      animation: streakPulse 0.5s ease;
+    }
+
+    .streak-banner.active { display: block; }
+
+    @keyframes streakPulse {
+      0% { transform: scale(0.9); opacity: 0; }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* History screen */
+    .history-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .history-item {
+      background: #16213e;
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+    }
+
+    .history-item .h-prompt {
+      flex: 1;
+      margin-right: 0.75rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .history-item .h-result {
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .h-correct { color: #b7e4c7; }
+    .h-wrong { color: #fcd5ce; }
+    .h-earned { color: #e94560; margin-left: 0.5rem; font-size: 0.8rem; }
+
+    .history-empty {
+      text-align: center;
+      color: #666;
+      padding: 2rem;
+    }
+
+    .load-more-btn {
+      padding: 0.7rem;
+      border: 1px solid #333;
+      border-radius: 10px;
+      background: transparent;
+      color: #888;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .load-more-btn:hover { color: #e94560; border-color: #e94560; }
 
     .loading {
       text-align: center;
@@ -292,10 +531,77 @@
       </div>
     </div>
 
-    <div class="coming-soon">
-      <h3>Challenges coming soon!</h3>
-      <p>Chess puzzles, vocabulary quizzes, and more.</p>
+    <div class="action-grid">
+      <button class="action-btn primary" id="play-btn">
+        <span class="action-icon">&#9654;</span>
+        Play
+      </button>
+      <button class="action-btn" id="history-btn">
+        <span class="action-icon">&#128203;</span>
+        History
+      </button>
     </div>
+  </div>
+
+  <!-- Category selection -->
+  <div id="category-screen" class="category-screen">
+    <div class="screen-header">
+      <button class="back-btn" id="cat-back-btn">&larr;</button>
+      <h2>Choose a Category</h2>
+    </div>
+    <div id="category-list"></div>
+  </div>
+
+  <!-- Play screen -->
+  <div id="play-screen" class="play-screen">
+    <div class="screen-header">
+      <button class="back-btn" id="play-back-btn">&larr;</button>
+      <h2 id="play-category-name">Spanish Vocab</h2>
+    </div>
+
+    <div id="streak-banner" class="streak-banner"></div>
+
+    <div id="question-card" class="question-card">
+      <div class="question-meta">
+        <span class="difficulty-badge" id="q-difficulty">EASY</span>
+        <span id="q-reward">+1 Chesnut</span>
+      </div>
+      <div class="question-prompt" id="q-prompt">Loading...</div>
+      <div class="options-grid" id="q-options"></div>
+    </div>
+
+    <div id="result-card" class="result-card">
+      <div class="result-emoji" id="r-emoji"></div>
+      <div class="result-text" id="r-text"></div>
+      <div class="result-earnings" id="r-earnings"></div>
+      <div class="result-streak" id="r-streak"></div>
+      <button class="next-btn" id="next-btn">Next Question</button>
+    </div>
+  </div>
+
+  <!-- History screen -->
+  <div id="history-screen" class="history-screen">
+    <div class="screen-header">
+      <button class="back-btn" id="hist-back-btn">&larr;</button>
+      <h2>History</h2>
+    </div>
+
+    <div class="history-stats">
+      <div class="stat-card">
+        <div class="stat-value" id="hist-total">0</div>
+        <div class="stat-label">Attempted</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="hist-correct">0</div>
+        <div class="stat-label">Correct</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="hist-earned">0</div>
+        <div class="stat-label">Earned</div>
+      </div>
+    </div>
+
+    <div id="history-list" class="history-list"></div>
   </div>
 
   <script type="module" src="./main.js"></script>
