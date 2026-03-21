@@ -12,49 +12,217 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
       min-height: 100dvh;
       background: #1a1a2e;
       color: #eee;
       font-family: system-ui, -apple-system, sans-serif;
+      padding: 2rem 1rem;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .logo {
+      display: inline-block;
+      width: 48px;
+      height: 48px;
+      margin-bottom: 0.5rem;
     }
 
     h1 {
       font-size: 2rem;
-      margin-bottom: 1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #e94560;
     }
 
-    .game-list {
+    .tagline {
+      font-size: 0.95rem;
+      color: #888;
+      margin-top: 0.25rem;
+    }
+
+    .game-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1rem;
+      width: 100%;
+      max-width: 480px;
       list-style: none;
       padding: 0;
-      width: 90%;
-      max-width: 400px;
     }
 
-    .game-list a {
+    @media (min-width: 600px) {
+      .game-grid {
+        max-width: 720px;
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .game-card {
       display: block;
-      padding: 1rem 1.5rem;
-      margin: 0.5rem 0;
       background: #16213e;
-      color: #e94560;
+      border-radius: 16px;
       text-decoration: none;
-      border-radius: 12px;
-      font-size: 1.2rem;
-      font-weight: 600;
-      text-align: center;
-      transition: background 0.15s;
+      color: inherit;
+      overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.15s;
       -webkit-tap-highlight-color: transparent;
     }
 
-    .game-list a:active {
+    .game-card:active {
+      transform: scale(0.97);
+    }
+
+    @media (hover: hover) {
+      .game-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(233, 69, 96, 0.15);
+      }
+    }
+
+    .card-preview {
+      width: 100%;
+      aspect-ratio: 16 / 10;
       background: #0f3460;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-preview canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .card-body {
+      padding: 1rem 1.25rem;
+    }
+
+    .card-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #e94560;
+      margin-bottom: 0.25rem;
+    }
+
+    .card-desc {
+      font-size: 0.9rem;
+      color: #aaa;
+      line-height: 1.4;
+    }
+
+    .footer {
+      margin-top: 3rem;
+      font-size: 0.8rem;
+      color: #555;
+      text-align: center;
     }
   </style>
 </head>
 <body>
-  <h1>Triangle Games</h1>
-  <ul class="game-list">
-    <li><a href="/games/triangle-tap/">Triangle Tap</a></li>
+  <div class="header">
+    <!-- Inline SVG triangle logo -->
+    <svg class="logo" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M24 6L44 42H4L24 6Z" fill="#e94560" opacity="0.9"/>
+      <path d="M24 16L34 36H14L24 16Z" fill="#1a1a2e" opacity="0.6"/>
+    </svg>
+    <h1>Triangle Games</h1>
+    <p class="tagline">Simple games, right in your browser</p>
+  </div>
+
+  <ul class="game-grid">
+    <li>
+      <a href="/games/triangle-tap/" class="game-card">
+        <div class="card-preview" id="preview-triangle-tap"></div>
+        <div class="card-body">
+          <div class="card-title">Triangle Tap</div>
+          <div class="card-desc">Tap fast! Hit the triangles before they vanish. How high can you score?</div>
+        </div>
+      </a>
+    </li>
   </ul>
+
+  <div class="footer">
+    Triangle Games &mdash; mobile-first fun
+  </div>
+
+  <script>
+    // Draw animated preview thumbnails for each game card
+    (function() {
+      const el = document.getElementById('preview-triangle-tap');
+      if (!el) return;
+
+      const canvas = document.createElement('canvas');
+      el.appendChild(canvas);
+      const ctx = canvas.getContext('2d');
+
+      function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      // Floating triangles animation
+      const colors = ['#e94560', '#0f3460', '#533483', '#16213e'];
+      const triangles = [];
+      for (let i = 0; i < 6; i++) {
+        triangles.push({
+          x: Math.random() * el.clientWidth,
+          y: Math.random() * el.clientHeight,
+          size: 12 + Math.random() * 20,
+          rotation: Math.random() * Math.PI * 2,
+          speed: 0.3 + Math.random() * 0.5,
+          rotSpeed: (Math.random() - 0.5) * 2,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          alpha: 0.4 + Math.random() * 0.5,
+        });
+      }
+
+      function draw() {
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = '#0f3460';
+        ctx.fillRect(0, 0, w, h);
+
+        for (const t of triangles) {
+          t.y -= t.speed;
+          t.rotation += t.rotSpeed * 0.016;
+          if (t.y < -t.size * 2) {
+            t.y = h + t.size;
+            t.x = Math.random() * w;
+          }
+
+          ctx.save();
+          ctx.globalAlpha = t.alpha;
+          ctx.fillStyle = t.color;
+          ctx.translate(t.x, t.y);
+          ctx.rotate(t.rotation);
+          ctx.beginPath();
+          ctx.moveTo(0, -t.size);
+          ctx.lineTo(t.size * 0.87, t.size * 0.5);
+          ctx.lineTo(-t.size * 0.87, t.size * 0.5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+  </script>
 </body>
 </html>
