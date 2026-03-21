@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#e94560">
   <title>Chesnuts</title>
+  <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/shared/reset.css">
   <style>
     body {
@@ -481,6 +483,85 @@
     .rdh-fulfilled { background: #2d6a4f; color: #b7e4c7; }
     .rdh-cancelled { background: #555; color: #aaa; }
 
+    /* Answer feedback animations */
+    .option-btn.correct { animation: correctPulse 0.4s ease; }
+    .option-btn.wrong { animation: wrongShake 0.4s ease; }
+
+    @keyframes correctPulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.04); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes wrongShake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+
+    /* Result card animations */
+    .result-card.active {
+      animation: resultSlideUp 0.35s ease;
+    }
+
+    @keyframes resultSlideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Chesnut earning animation */
+    .chesnut-fly {
+      position: fixed;
+      font-size: 1.5rem;
+      pointer-events: none;
+      z-index: 200;
+      animation: flyUp 0.9s ease-out forwards;
+    }
+
+    @keyframes flyUp {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      70% { opacity: 1; transform: translateY(-60px) scale(1.2); }
+      100% { opacity: 0; transform: translateY(-90px) scale(0.8); }
+    }
+
+    /* Enhanced streak banner */
+    .streak-banner.active {
+      animation: streakPulse 0.5s ease, streakGlow 1.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes streakGlow {
+      from { box-shadow: 0 0 8px rgba(233, 69, 96, 0.3); }
+      to { box-shadow: 0 0 20px rgba(233, 69, 96, 0.6); }
+    }
+
+    /* Streak fire icon in play screen */
+    .streak-display {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      font-size: 0.9rem;
+      color: #888;
+      margin-bottom: 0.5rem;
+    }
+
+    .streak-display.on-fire {
+      color: #e94560;
+      font-weight: 700;
+    }
+
+    .streak-display .fire {
+      display: inline-block;
+      animation: fireFlicker 0.6s ease-in-out infinite alternate;
+    }
+
+    @keyframes fireFlicker {
+      from { transform: scale(1) rotate(-3deg); }
+      to { transform: scale(1.15) rotate(3deg); }
+    }
+
     /* Result feedback */
     .result-card {
       display: none;
@@ -704,6 +785,7 @@
       <h2 id="play-category-name">Spanish Vocab</h2>
     </div>
 
+    <div id="streak-display" class="streak-display"></div>
     <div id="streak-banner" class="streak-banner"></div>
 
     <div id="question-card" class="question-card">

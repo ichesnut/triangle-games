@@ -322,12 +322,39 @@ async function showCategories() {
 document.getElementById('play-back-btn').addEventListener('click', () => showDashboard(currentUser));
 document.getElementById('next-btn').addEventListener('click', loadNextQuestion);
 
+function updateStreakDisplay() {
+  const el = document.getElementById('streak-display');
+  const streak = currentUser ? currentUser.currentStreak : 0;
+  if (streak > 0) {
+    const fire = streak >= 5 ? '<span class="fire">&#128293;</span>' : '';
+    el.innerHTML = `${fire} Streak: ${streak} ${fire}`;
+    el.classList.toggle('on-fire', streak >= 5);
+  } else {
+    el.textContent = '';
+    el.classList.remove('on-fire');
+  }
+}
+
+function spawnChesnutFly(count) {
+  for (let i = 0; i < Math.min(count, 5); i++) {
+    const el = document.createElement('div');
+    el.className = 'chesnut-fly';
+    el.textContent = '\uD83C\uDF30';
+    el.style.left = `${40 + Math.random() * 20}%`;
+    el.style.top = `${50 + Math.random() * 10}%`;
+    el.style.animationDelay = `${i * 0.12}s`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1200);
+  }
+}
+
 async function startPlaying(slug, name) {
   currentCategory = slug;
   document.getElementById('play-category-name').textContent = name;
   hideAll();
   playScreen.classList.add('active');
   document.getElementById('streak-banner').classList.remove('active');
+  updateStreakDisplay();
   await loadNextQuestion();
 }
 
@@ -437,8 +464,14 @@ async function submitAnswer(answer) {
       }
     }
 
-    // Update user stats
+    // Update user stats and streak display
     updateDashboardStats(data.user);
+    updateStreakDisplay();
+
+    // Chesnut earning animation
+    if (data.chesnutsEarned > 0) {
+      spawnChesnutFly(data.chesnutsEarned);
+    }
 
     // Show result card after a brief delay
     setTimeout(() => {
