@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Triangle Games</title>
+  <link rel="stylesheet" href="/shared/reset.css">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      background: #1a1a2e;
+      color: #eee;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+
+    .game-list {
+      list-style: none;
+      padding: 0;
+      width: 90%;
+      max-width: 400px;
+    }
+
+    .game-list a {
+      display: block;
+      padding: 1rem 1.5rem;
+      margin: 0.5rem 0;
+      background: #16213e;
+      color: #e94560;
+      text-decoration: none;
+      border-radius: 12px;
+      font-size: 1.2rem;
+      font-weight: 600;
+      text-align: center;
+      transition: background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .game-list a:active {
+      background: #0f3460;
+    }
+  </style>
+</head>
+<body>
+  <h1>Triangle Games</h1>
+  <ul class="game-list">
+    <li><a href="/games/triangle-tap/">Triangle Tap</a></li>
+  </ul>
+</body>
+</html>

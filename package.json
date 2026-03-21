@@ -1,0 +1,17 @@
+{
+  "name": "triangle-games",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "Triangle Games",
+  "license": "ISC",
+  "description": "Simple, fun, mobile-accessible web games",
+  "devDependencies": {
+    "vite": "^8.0.1"
+  }
+}
