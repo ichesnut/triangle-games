@@ -367,6 +367,120 @@
       margin-top: 0.75rem;
     }
 
+    /* Rewards catalog */
+    .reward-balance {
+      background: #16213e;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      text-align: center;
+      font-weight: 600;
+      color: #e94560;
+      margin-bottom: 0.75rem;
+    }
+
+    .reward-card {
+      background: #16213e;
+      border-radius: 14px;
+      padding: 1.25rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .reward-info h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.2rem;
+    }
+
+    .reward-info .reward-desc {
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    .redeem-btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 8px;
+      background: #e94560;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .redeem-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .redeem-btn:active:not(:disabled) { opacity: 0.8; }
+
+    /* Redeem confirmation overlay */
+    .redeem-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .redeem-overlay.active { display: flex; }
+
+    .redeem-dialog {
+      background: #16213e;
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 340px;
+      width: 90%;
+      text-align: center;
+    }
+
+    .redeem-dialog h3 {
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+    }
+
+    .redeem-cost {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #e94560;
+      margin: 0.5rem 0;
+    }
+
+    .redeem-remaining {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 1rem;
+    }
+
+    .redeem-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+    }
+
+    .redeem-actions .back-btn {
+      padding: 0.75rem 1.5rem;
+    }
+
+    /* Redemption status badges */
+    .rdh-status {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+
+    .rdh-pending { background: #e76f51; color: #fce4d6; }
+    .rdh-fulfilled { background: #2d6a4f; color: #b7e4c7; }
+    .rdh-cancelled { background: #555; color: #aaa; }
+
     /* Result feedback */
     .result-card {
       display: none;
@@ -559,9 +673,17 @@
         <span class="action-icon">&#9654;</span>
         Play
       </button>
+      <button class="action-btn" id="rewards-btn">
+        <span class="action-icon">&#127873;</span>
+        Rewards
+      </button>
       <button class="action-btn" id="history-btn">
         <span class="action-icon">&#128203;</span>
         History
+      </button>
+      <button class="action-btn" id="redemptions-btn">
+        <span class="action-icon">&#128230;</span>
+        My Rewards
       </button>
     </div>
   </div>
@@ -630,6 +752,51 @@
     </div>
 
     <div id="history-list" class="history-list"></div>
+  </div>
+
+  <!-- Rewards catalog screen -->
+  <div id="rewards-screen" class="category-screen">
+    <div class="screen-header">
+      <button class="back-btn" id="rew-back-btn">&larr;</button>
+      <h2>Rewards</h2>
+    </div>
+    <div class="reward-balance">
+      Balance: <span id="rew-balance">0</span> Chesnuts
+    </div>
+    <div id="reward-list"></div>
+  </div>
+
+  <!-- Redemption confirm dialog -->
+  <div id="redeem-overlay" class="redeem-overlay">
+    <div class="redeem-dialog">
+      <h3>Confirm Redemption</h3>
+      <p id="redeem-detail"></p>
+      <p class="redeem-cost">Cost: <span id="redeem-cost">0</span> Chesnuts</p>
+      <p class="redeem-remaining">Remaining: <span id="redeem-remaining">0</span></p>
+      <div class="redeem-actions">
+        <button class="submit-btn" id="redeem-confirm-btn">Redeem</button>
+        <button class="back-btn" id="redeem-cancel-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Redemption history screen -->
+  <div id="redemptions-screen" class="category-screen">
+    <div class="screen-header">
+      <button class="back-btn" id="rdh-back-btn">&larr;</button>
+      <h2>My Rewards</h2>
+    </div>
+    <div class="history-stats">
+      <div class="stat-card">
+        <div class="stat-value" id="rdh-total">0</div>
+        <div class="stat-label">Redeemed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="rdh-spent">0</div>
+        <div class="stat-label">Spent</div>
+      </div>
+    </div>
+    <div id="redemptions-list" class="history-list"></div>
   </div>
 
   <script type="module" src="./main.js"></script>

@@ -176,6 +176,9 @@ const categoryScreen = document.getElementById('category-screen');
 const categoryList = document.getElementById('category-list');
 const playScreen = document.getElementById('play-screen');
 const historyScreen = document.getElementById('history-screen');
+const rewardsScreen = document.getElementById('rewards-screen');
+const redemptionsScreen = document.getElementById('redemptions-screen');
+const redeemOverlay = document.getElementById('redeem-overlay');
 
 // ─── Screen management ──────────────────────────────────────
 function hideAll() {
@@ -185,6 +188,9 @@ function hideAll() {
   categoryScreen.classList.remove('active');
   playScreen.classList.remove('active');
   historyScreen.classList.remove('active');
+  rewardsScreen.classList.remove('active');
+  redemptionsScreen.classList.remove('active');
+  redeemOverlay.classList.remove('active');
 }
 
 function showAuth() {
@@ -277,6 +283,8 @@ logoutBtn.addEventListener('click', async () => {
 // ─── Dashboard actions ───────────────────────────────────────
 document.getElementById('play-btn').addEventListener('click', showCategories);
 document.getElementById('history-btn').addEventListener('click', showHistory);
+document.getElementById('rewards-btn').addEventListener('click', showRewards);
+document.getElementById('redemptions-btn').addEventListener('click', showRedemptions);
 
 // ─── Category screen ─────────────────────────────────────────
 document.getElementById('cat-back-btn').addEventListener('click', () => showDashboard(currentUser));
@@ -481,6 +489,133 @@ async function submitAnswer(answer) {
       chessBoardCanvas.style.pointerEvents = '';
     }
     alert(err.message);
+  }
+}
+
+// ─── Rewards screen ──────────────────────────────────────────
+document.getElementById('rew-back-btn').addEventListener('click', () => showDashboard(currentUser));
+
+let pendingRedeemId = null;
+
+async function showRewards() {
+  hideAll();
+  rewardsScreen.classList.add('active');
+  const listEl = document.getElementById('reward-list');
+  listEl.innerHTML = '<div class="loading">Loading rewards...</div>';
+
+  try {
+    const data = await api('/rewards/catalog');
+    document.getElementById('rew-balance').textContent = data.balance;
+    listEl.innerHTML = '';
+
+    if (data.rewards.length === 0) {
+      listEl.innerHTML = '<div class="history-empty">No rewards available yet.</div>';
+      return;
+    }
+
+    for (const reward of data.rewards) {
+      const card = document.createElement('div');
+      card.className = 'reward-card';
+      const canAfford = data.balance >= reward.chesnutCost;
+      card.innerHTML = `
+        <div class="reward-info">
+          <h3>${escapeHtml(reward.name)}</h3>
+          <span class="reward-desc">${escapeHtml(reward.description)}</span>
+        </div>
+        <button class="redeem-btn" ${canAfford ? '' : 'disabled'}
+          data-id="${reward.id}" data-name="${escapeHtml(reward.name)}" data-cost="${reward.chesnutCost}">
+          ${reward.chesnutCost} &#127330;
+        </button>
+      `;
+      card.querySelector('.redeem-btn').addEventListener('click', (e) => {
+        const btn = e.currentTarget;
+        showRedeemConfirm(
+          parseInt(btn.dataset.id),
+          btn.dataset.name,
+          parseInt(btn.dataset.cost),
+          data.balance
+        );
+      });
+      listEl.appendChild(card);
+    }
+  } catch (err) {
+    listEl.innerHTML = `<div class="history-empty">Error: ${err.message}</div>`;
+  }
+}
+
+function showRedeemConfirm(rewardId, name, cost, balance) {
+  pendingRedeemId = rewardId;
+  document.getElementById('redeem-detail').textContent = name;
+  document.getElementById('redeem-cost').textContent = cost;
+  document.getElementById('redeem-remaining').textContent = `${balance - cost} Chesnuts after redemption`;
+  redeemOverlay.classList.add('active');
+}
+
+document.getElementById('redeem-cancel-btn').addEventListener('click', () => {
+  redeemOverlay.classList.remove('active');
+  pendingRedeemId = null;
+});
+
+document.getElementById('redeem-confirm-btn').addEventListener('click', async () => {
+  if (!pendingRedeemId) return;
+  const btn = document.getElementById('redeem-confirm-btn');
+  btn.disabled = true;
+
+  try {
+    const data = await api('/rewards/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ rewardId: pendingRedeemId }),
+    });
+
+    // Update dashboard stats
+    updateDashboardStats(data.user);
+    redeemOverlay.classList.remove('active');
+    pendingRedeemId = null;
+
+    // Refresh catalog to update afford status
+    await showRewards();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ─── Redemptions screen ──────────────────────────────────────
+document.getElementById('rdh-back-btn').addEventListener('click', () => showDashboard(currentUser));
+
+async function showRedemptions() {
+  hideAll();
+  redemptionsScreen.classList.add('active');
+  const listEl = document.getElementById('redemptions-list');
+  listEl.innerHTML = '<div class="loading">Loading...</div>';
+
+  try {
+    const data = await api('/rewards/redemptions');
+    document.getElementById('rdh-total').textContent = data.stats.totalRedemptions || 0;
+    document.getElementById('rdh-spent').textContent = data.stats.totalSpent || 0;
+
+    listEl.innerHTML = '';
+
+    if (data.redemptions.length === 0) {
+      listEl.innerHTML = '<div class="history-empty">No redemptions yet. Earn Chesnuts and spend them on rewards!</div>';
+      return;
+    }
+
+    for (const rd of data.redemptions) {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      item.innerHTML = `
+        <span class="h-prompt">${escapeHtml(rd.rewardName)}</span>
+        <span class="h-result">
+          <span class="rdh-status rdh-${rd.status}">${rd.status}</span>
+          <span class="h-earned">-${rd.chesnutsSpent}</span>
+        </span>
+      `;
+      listEl.appendChild(item);
+    }
+  } catch (err) {
+    listEl.innerHTML = `<div class="history-empty">Error: ${err.message}</div>`;
   }
 }
 

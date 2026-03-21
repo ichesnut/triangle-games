@@ -53,8 +53,33 @@ db.exec(`
   )
 `);
 
-// Index for fast lookups
+// Rewards table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS rewards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    chesnutCost INTEGER NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+// Redemptions table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS redemptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId INTEGER NOT NULL REFERENCES users(id),
+    rewardId INTEGER NOT NULL REFERENCES rewards(id),
+    chesnutsSpent INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'fulfilled', 'cancelled')),
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+// Indexes for fast lookups
 db.exec(`CREATE INDEX IF NOT EXISTS idx_attempts_user ON attempt_history(userId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_challenges_category ON challenges(categorySlug)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_redemptions_user ON redemptions(userId)`);
 
 export default db;

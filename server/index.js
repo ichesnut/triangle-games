@@ -5,6 +5,7 @@ import connectSqlite3 from 'connect-sqlite3';
 import { mkdirSync } from 'fs';
 import authRouter from './routes/auth.js';
 import challengeRouter from './routes/challenges.js';
+import rewardsRouter from './routes/rewards.js';
 import './seed.js';
 
 const SQLiteStore = connectSqlite3(session);
@@ -60,6 +61,7 @@ app.get('/api/chesnuts/csrf-token', (req, res) => {
 });
 
 app.use('/api/chesnuts/challenges', csrfProtection, challengeRouter);
+app.use('/api/chesnuts/rewards', csrfProtection, rewardsRouter);
 app.use('/api/chesnuts', csrfProtection, authRouter);
 
 // Health check
