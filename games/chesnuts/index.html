@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Chesnuts</title>
+  <link rel="stylesheet" href="/shared/reset.css">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      background: #1a1a2e;
+      color: #eee;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 1.5rem 1rem;
+    }
+
+    .back-link {
+      align-self: flex-start;
+      color: #888;
+      text-decoration: none;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    .back-link:hover { color: #e94560; }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .page-header h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #e94560;
+    }
+
+    .page-header .subtitle {
+      color: #888;
+      font-size: 0.95rem;
+      margin-top: 0.25rem;
+    }
+
+    /* Auth forms */
+    .auth-container {
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #16213e;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 0.75rem;
+      border: none;
+      background: transparent;
+      color: #888;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .tab-btn.active {
+      background: #e94560;
+      color: #fff;
+    }
+
+    .auth-form {
+      display: none;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .auth-form.active {
+      display: flex;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      color: #aaa;
+      margin-bottom: 0.3rem;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 2px solid #16213e;
+      border-radius: 10px;
+      background: #16213e;
+      color: #eee;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus {
+      border-color: #e94560;
+    }
+
+    .submit-btn {
+      padding: 0.85rem;
+      border: none;
+      border-radius: 10px;
+      background: #e94560;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .submit-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .submit-btn:active:not(:disabled) {
+      opacity: 0.8;
+    }
+
+    .form-error {
+      color: #ff6b6b;
+      font-size: 0.85rem;
+      min-height: 1.2em;
+    }
+
+    /* Dashboard */
+    .dashboard {
+      display: none;
+      width: 100%;
+      max-width: 480px;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .dashboard.active {
+      display: flex;
+    }
+
+    .welcome-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .welcome-bar .greeting {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .logout-btn {
+      padding: 0.4rem 1rem;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: transparent;
+      color: #888;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .logout-btn:hover { color: #e94560; border-color: #e94560; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+
+    .stat-card {
+      background: #16213e;
+      border-radius: 14px;
+      padding: 1.25rem 1rem;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #e94560;
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: #888;
+      margin-top: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .coming-soon {
+      background: #16213e;
+      border-radius: 14px;
+      padding: 2rem;
+      text-align: center;
+      color: #666;
+    }
+
+    .coming-soon h3 {
+      color: #aaa;
+      margin-bottom: 0.5rem;
+    }
+
+    .loading {
+      text-align: center;
+      color: #666;
+      padding: 3rem;
+    }
+  </style>
+</head>
+<body>
+  <a href="/" class="back-link">&larr; Triangle Games</a>
+
+  <div class="page-header">
+    <h1>Chesnuts</h1>
+    <p class="subtitle">Solve puzzles. Earn Chesnuts. Claim rewards.</p>
+  </div>
+
+  <div id="loading" class="loading">Loading...</div>
+
+  <!-- Auth section (shown when logged out) -->
+  <div id="auth" class="auth-container" style="display:none">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="login">Login</button>
+      <button class="tab-btn" data-tab="register">Register</button>
+    </div>
+
+    <form id="login-form" class="auth-form active" autocomplete="on">
+      <div class="form-group">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" name="email" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" name="password" required autocomplete="current-password">
+      </div>
+      <div class="form-error" id="login-error"></div>
+      <button type="submit" class="submit-btn">Login</button>
+    </form>
+
+    <form id="register-form" class="auth-form" autocomplete="on">
+      <div class="form-group">
+        <label for="reg-name">Display Name</label>
+        <input type="text" id="reg-name" name="displayName" required autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label for="reg-email">Email</label>
+        <input type="email" id="reg-email" name="email" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="reg-password">Password</label>
+        <input type="password" id="reg-password" name="password" required minlength="6" autocomplete="new-password">
+      </div>
+      <div class="form-error" id="register-error"></div>
+      <button type="submit" class="submit-btn">Create Account</button>
+    </form>
+  </div>
+
+  <!-- Dashboard (shown when logged in) -->
+  <div id="dashboard" class="dashboard">
+    <div class="welcome-bar">
+      <span class="greeting">Hey, <span id="user-name"></span>!</span>
+      <button class="logout-btn" id="logout-btn">Logout</button>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-balance">0</div>
+        <div class="stat-label">Chesnuts</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-streak">0</div>
+        <div class="stat-label">Streak</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-best">0</div>
+        <div class="stat-label">Best</div>
+      </div>
+    </div>
+
+    <div class="coming-soon">
+      <h3>Challenges coming soon!</h3>
+      <p>Chess puzzles, vocabulary quizzes, and more.</p>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
