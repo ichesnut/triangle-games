@@ -38,6 +38,10 @@ let currentSpawnInterval = SPAWN_INTERVAL_INITIAL;
 // Visual feedback
 let flashEffects = []; // { x, y, size, alpha, color }
 
+// Game-over delay — prevent accidental restart
+const GAMEOVER_TAP_DELAY = 1.5; // seconds before taps are accepted
+let gameOverTimer = 0;
+
 // ── Setup ──────────────────────────────────────────────────
 const container = document.getElementById('game');
 const screen = createCanvas(container);
@@ -158,7 +162,8 @@ function update(dt) {
   }
 
   if (state === 'gameover') {
-    if (taps.length > 0) {
+    gameOverTimer += dt;
+    if (taps.length > 0 && gameOverTimer >= GAMEOVER_TAP_DELAY) {
       resetGame();
       state = 'playing';
     }
@@ -222,6 +227,7 @@ function update(dt) {
 
       if (lives <= 0) {
         state = 'gameover';
+        gameOverTimer = 0;
         if (score > highScore) {
           highScore = score;
           saveHighScore(score);
@@ -383,13 +389,15 @@ function renderGameOverScreen(w, h) {
     ctx.fillText(`Best: ${highScore}`, w / 2, h * 0.53);
   }
 
-  // Restart prompt
-  ctx.fillStyle = ACCENT;
-  ctx.font = 'bold 22px system-ui';
-  const pulse = 0.7 + Math.sin(performance.now() / 400) * 0.3;
-  ctx.globalAlpha = pulse;
-  ctx.fillText('Tap to Play Again', w / 2, h * 0.7);
-  ctx.globalAlpha = 1;
+  // Restart prompt — only show after delay so player can read their score
+  if (gameOverTimer >= GAMEOVER_TAP_DELAY) {
+    ctx.fillStyle = ACCENT;
+    ctx.font = 'bold 22px system-ui';
+    const pulse = 0.7 + Math.sin(performance.now() / 400) * 0.3;
+    ctx.globalAlpha = pulse;
+    ctx.fillText('Tap to Play Again', w / 2, h * 0.7);
+    ctx.globalAlpha = 1;
+  }
 }
 
 // ── Start the loop ─────────────────────────────────────────
