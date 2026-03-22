@@ -449,14 +449,35 @@ document.getElementById('start-btn').addEventListener('click', () => {
 
 document.getElementById('copy-link-btn').addEventListener('click', () => {
   const url = `${location.origin}/games/math-battle/?room=${roomCode}`;
-  navigator.clipboard.writeText(url).then(() => {
-    const btn = document.getElementById('copy-link-btn');
+  const btn = document.getElementById('copy-link-btn');
+
+  function onCopied() {
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = 'Copy Invite Link'; }, 2000);
-  }).catch(() => {
-    // Fallback: select text
-    prompt('Share this link:', `${location.origin}/games/math-battle/?room=${roomCode}`);
-  });
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      const ok = document.execCommand('copy');
+      if (ok) { onCopied(); } else { prompt('Share this link:', text); }
+    } catch (_) {
+      prompt('Share this link:', text);
+    }
+    document.body.removeChild(ta);
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(onCopied).catch(() => fallbackCopy(url));
+  } else {
+    fallbackCopy(url);
+  }
 });
 
 // ── Round result actions ───────────────────────────────
