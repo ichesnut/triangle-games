@@ -61,7 +61,6 @@ async function checkAuth() {
     }
   } catch (_) { /* not logged in */ }
   loadingMsg.style.display = 'none';
-  authForms.style.display = '';
   authForms.style.display = 'flex';
 }
 
@@ -198,6 +197,7 @@ function handleServerMessage(msg) {
 
     case 'error':
       console.error('Server error:', msg.message);
+      showMenuError(msg.message || 'Something went wrong.');
       break;
   }
 }
@@ -398,6 +398,13 @@ document.getElementById('numpad').addEventListener('click', (e) => {
   document.getElementById('answer-display').textContent = myAnswer || '\u00A0';
 });
 
+// ── Menu error display ────────────────────────────────
+function showMenuError(msg) {
+  const el = document.getElementById('menu-error');
+  el.textContent = msg;
+  setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 5000);
+}
+
 // ── Create / Join ──────────────────────────────────────
 async function connectAndCreate() {
   try {
@@ -405,6 +412,7 @@ async function connectAndCreate() {
     send({ type: 'create_room' });
   } catch (err) {
     console.error('Failed to connect:', err);
+    showMenuError('Could not connect to server. Please try again.');
   }
 }
 
@@ -414,6 +422,7 @@ async function connectAndJoin(code) {
     send({ type: 'join_room', code });
   } catch (err) {
     console.error('Failed to connect:', err);
+    showMenuError('Could not connect to server. Please try again.');
   }
 }
 

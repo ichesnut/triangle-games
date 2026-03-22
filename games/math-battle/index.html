@@ -372,7 +372,7 @@
 
     <div id="loading-msg" class="subtitle">Checking session...</div>
 
-    <div id="auth-forms" style="display:none; width:100%; max-width:320px; display:flex; flex-direction:column; align-items:center;">
+    <div id="auth-forms" style="display:none; width:100%; max-width:320px; flex-direction:column; align-items:center;">
       <div class="auth-tabs">
         <button class="auth-tab active" data-tab="login">Login</button>
         <button class="auth-tab" data-tab="register">Register</button>
@@ -403,6 +403,7 @@
     <div style="color:var(--text-dim); font-size:0.85rem; margin: 0.5rem 0;">or</div>
     <input class="input-field" id="join-code-input" placeholder="Enter room code" maxlength="4" style="text-transform:uppercase">
     <button class="btn btn-secondary" id="join-btn">Join Game</button>
+    <div class="error-msg" id="menu-error"></div>
     <a href="/" class="back-home" style="margin-top:2rem">Back to Games</a>
   </div>
 
