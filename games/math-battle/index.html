@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Math Battle</title>
+  <link rel="stylesheet" href="/shared/reset.css">
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --bg-card: #16213e;
+      --accent: #e94560;
+      --text: #eee;
+      --text-dim: #aaa;
+      --green: #2ecc71;
+      --gold: #ffd700;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      padding: 0;
+      overflow-x: hidden;
+    }
+
+    .screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 480px;
+      padding: 1.5rem 1rem;
+      flex: 1;
+    }
+    .screen.active { display: flex; }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+
+    h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 1rem;
+    }
+
+    .subtitle {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.1s, opacity 0.1s;
+      width: 100%;
+      max-width: 320px;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; pointer-events: none; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid #333;
+    }
+
+    .input-field {
+      width: 100%;
+      max-width: 320px;
+      padding: 0.75rem 1rem;
+      border: 1px solid #333;
+      border-radius: 12px;
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 1rem;
+      text-align: center;
+      margin-bottom: 0.75rem;
+    }
+    .input-field::placeholder { color: #666; }
+    .input-field:focus { outline: none; border-color: var(--accent); }
+
+    .error-msg {
+      color: var(--accent);
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+      min-height: 1.2em;
+    }
+
+    /* Auth screen */
+    .auth-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #333;
+    }
+    .auth-tab {
+      flex: 1;
+      padding: 0.6rem 1rem;
+      background: var(--bg-card);
+      color: var(--text-dim);
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .auth-tab.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .auth-form { display: none; width: 100%; max-width: 320px; }
+    .auth-form.active { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+
+    /* Lobby */
+    .room-code {
+      font-size: 3rem;
+      font-weight: 800;
+      letter-spacing: 0.3em;
+      color: var(--accent);
+      margin: 1rem 0;
+    }
+
+    .copy-link-btn {
+      font-size: 0.85rem;
+      padding: 0.5rem 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .player-list {
+      width: 100%;
+      max-width: 320px;
+      list-style: none;
+      padding: 0;
+      margin-bottom: 1.5rem;
+    }
+    .player-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 1rem;
+      background: var(--bg-card);
+      border-radius: 10px;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+    }
+    .player-item .host-badge {
+      font-size: 0.75rem;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+    }
+
+    /* Battle screen */
+    #battle-screen {
+      padding: 1rem;
+      justify-content: flex-start;
+    }
+
+    .challenge-text {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--text);
+      margin: 1rem 0;
+      text-align: center;
+      min-height: 3.5rem;
+    }
+
+    .answer-display {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      min-height: 2.5rem;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.1em;
+    }
+
+    .numpad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      width: 100%;
+      max-width: 300px;
+      margin-top: 0.5rem;
+    }
+    .numpad-btn {
+      aspect-ratio: 1.4;
+      border: none;
+      border-radius: 14px;
+      font-size: 1.6rem;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.08s;
+      background: var(--bg-card);
+      color: var(--text);
+    }
+    .numpad-btn:active { transform: scale(0.93); }
+    .numpad-btn.submit-btn {
+      background: var(--green);
+      color: #fff;
+    }
+    .numpad-btn.negative-btn {
+      background: #533483;
+      color: #fff;
+    }
+    .numpad-btn.backspace-btn {
+      background: #333;
+      color: var(--text);
+    }
+
+    .scores-bar {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 0.5rem;
+      font-size: 0.8rem;
+    }
+    .score-chip {
+      background: var(--bg-card);
+      padding: 0.3rem 0.7rem;
+      border-radius: 8px;
+    }
+    .score-chip.me { border: 1px solid var(--accent); }
+
+    .round-info {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      margin-bottom: 0.25rem;
+    }
+
+    /* Flash overlay for feedback */
+    .flash-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 100;
+    }
+    .flash-overlay.correct { background: rgba(46, 204, 113, 0.25); opacity: 1; }
+    .flash-overlay.wrong { background: rgba(233, 69, 96, 0.25); opacity: 1; }
+
+    /* Round result */
+    .result-winner {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--gold);
+      margin: 1rem 0 0.5rem;
+    }
+    .result-answer {
+      font-size: 1.1rem;
+      color: var(--text-dim);
+      margin-bottom: 0.5rem;
+    }
+    .result-time {
+      font-size: 0.9rem;
+      color: var(--text-dim);
+      margin-bottom: 1.5rem;
+    }
+    .result-buttons {
+      display: flex;
+      gap: 0.75rem;
+      width: 100%;
+      max-width: 320px;
+    }
+    .result-buttons .btn { flex: 1; }
+
+    /* Scoreboard */
+    .scoreboard-list {
+      width: 100%;
+      max-width: 360px;
+      margin-bottom: 1.5rem;
+    }
+    .scoreboard-row {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background: var(--bg-card);
+      border-radius: 12px;
+      margin-bottom: 0.5rem;
+    }
+    .scoreboard-row.first { border: 2px solid var(--gold); }
+    .scoreboard-rank {
+      font-size: 1.3rem;
+      font-weight: 800;
+      width: 2rem;
+      color: var(--text-dim);
+    }
+    .scoreboard-row.first .scoreboard-rank { color: var(--gold); }
+    .scoreboard-name {
+      flex: 1;
+      font-weight: 600;
+    }
+    .scoreboard-stats {
+      text-align: right;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+    .scoreboard-stats .chesnuts {
+      color: var(--gold);
+      font-weight: 700;
+    }
+
+    .back-home {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--text-dim);
+      text-decoration: none;
+    }
+
+    /* Waiting indicator */
+    .waiting {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      margin-top: 1rem;
+    }
+    .waiting::after {
+      content: '';
+      animation: dots 1.2s steps(4) infinite;
+    }
+    @keyframes dots {
+      0% { content: ''; }
+      25% { content: '.'; }
+      50% { content: '..'; }
+      75% { content: '...'; }
+    }
+
+    .vote-info {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Flash overlay for correct/wrong feedback -->
+  <div class="flash-overlay" id="flash-overlay"></div>
+
+  <!-- Auth Screen -->
+  <div class="screen active" id="auth-screen">
+    <h1>Math Battle</h1>
+    <p class="subtitle">Compete head-to-head in real-time math!</p>
+
+    <div id="loading-msg" class="subtitle">Checking session...</div>
+
+    <div id="auth-forms" style="display:none; width:100%; max-width:320px; display:flex; flex-direction:column; align-items:center;">
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="register">Register</button>
+      </div>
+
+      <form class="auth-form active" id="login-form">
+        <input class="input-field" name="email" type="email" placeholder="Email" required autocomplete="email">
+        <input class="input-field" name="password" type="password" placeholder="Password" required autocomplete="current-password">
+        <button type="submit" class="btn btn-primary">Login</button>
+        <div class="error-msg" id="login-error"></div>
+      </form>
+
+      <form class="auth-form" id="register-form">
+        <input class="input-field" name="displayName" placeholder="Display Name" required autocomplete="name">
+        <input class="input-field" name="email" type="email" placeholder="Email" required autocomplete="email">
+        <input class="input-field" name="password" type="password" placeholder="Password" required autocomplete="new-password">
+        <button type="submit" class="btn btn-primary">Register</button>
+        <div class="error-msg" id="register-error"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create/Join Screen -->
+  <div class="screen" id="menu-screen">
+    <h1>Math Battle</h1>
+    <p class="subtitle" id="welcome-msg">Welcome!</p>
+    <button class="btn btn-primary" id="create-btn" style="margin-bottom:0.75rem">Create Game</button>
+    <div style="color:var(--text-dim); font-size:0.85rem; margin: 0.5rem 0;">or</div>
+    <input class="input-field" id="join-code-input" placeholder="Enter room code" maxlength="4" style="text-transform:uppercase">
+    <button class="btn btn-secondary" id="join-btn">Join Game</button>
+    <a href="/" class="back-home" style="margin-top:2rem">Back to Games</a>
+  </div>
+
+  <!-- Lobby Screen -->
+  <div class="screen" id="lobby-screen">
+    <h2>Game Lobby</h2>
+    <p class="subtitle">Share this code with friends:</p>
+    <div class="room-code" id="room-code"></div>
+    <button class="btn btn-secondary copy-link-btn" id="copy-link-btn">Copy Invite Link</button>
+    <ul class="player-list" id="player-list"></ul>
+    <button class="btn btn-primary" id="start-btn" disabled>Start Game</button>
+    <p class="subtitle" id="lobby-status">Waiting for players...</p>
+  </div>
+
+  <!-- Battle Screen -->
+  <div class="screen" id="battle-screen">
+    <div class="round-info" id="round-info">Round 1</div>
+    <div class="scores-bar" id="scores-bar"></div>
+    <div class="challenge-text" id="challenge-text"></div>
+    <div class="answer-display" id="answer-display">&nbsp;</div>
+    <div class="numpad" id="numpad">
+      <button class="numpad-btn" data-val="1">1</button>
+      <button class="numpad-btn" data-val="2">2</button>
+      <button class="numpad-btn" data-val="3">3</button>
+      <button class="numpad-btn" data-val="4">4</button>
+      <button class="numpad-btn" data-val="5">5</button>
+      <button class="numpad-btn" data-val="6">6</button>
+      <button class="numpad-btn" data-val="7">7</button>
+      <button class="numpad-btn" data-val="8">8</button>
+      <button class="numpad-btn" data-val="9">9</button>
+      <button class="numpad-btn negative-btn" data-val="neg">&minus;</button>
+      <button class="numpad-btn" data-val="0">0</button>
+      <button class="numpad-btn backspace-btn" data-val="back">&larr;</button>
+      <button class="numpad-btn submit-btn" data-val="submit" style="grid-column: 1 / -1;">Submit</button>
+    </div>
+    <p class="waiting" id="battle-waiting" style="display:none">Waiting for others</p>
+  </div>
+
+  <!-- Round Result Screen -->
+  <div class="screen" id="result-screen">
+    <h2>Round Complete!</h2>
+    <div class="result-winner" id="result-winner"></div>
+    <div class="result-answer" id="result-answer"></div>
+    <div class="result-time" id="result-time"></div>
+    <div class="scores-bar" id="result-scores"></div>
+    <div class="result-buttons">
+      <button class="btn btn-primary" id="next-round-btn">Next Round</button>
+      <button class="btn btn-secondary" id="vote-finish-btn">Vote to Finish</button>
+    </div>
+    <p class="vote-info" id="vote-info"></p>
+  </div>
+
+  <!-- Final Scoreboard Screen -->
+  <div class="screen" id="scoreboard-screen">
+    <h2>Game Over!</h2>
+    <div class="scoreboard-list" id="scoreboard-list"></div>
+    <button class="btn btn-primary" id="play-again-btn" style="margin-bottom:0.75rem">Play Again</button>
+    <a href="/" class="back-home">Back to Games</a>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

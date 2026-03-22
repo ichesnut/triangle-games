@@ -158,6 +158,15 @@
         </div>
       </a>
     </li>
+    <li>
+      <a href="/games/math-battle/" class="game-card">
+        <div class="card-preview" id="preview-math-battle"></div>
+        <div class="card-body">
+          <div class="card-title">Math Battle</div>
+          <div class="card-desc">Challenge friends to real-time math duels! First correct answer wins.</div>
+        </div>
+      </a>
+    </li>
   </ul>
 
   <div class="footer">
@@ -230,6 +239,65 @@
           ctx.restore();
         }
 
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+
+    // Math Battle preview: floating numbers and operators
+    (function() {
+      const el = document.getElementById('preview-math-battle');
+      if (!el) return;
+
+      const canvas = document.createElement('canvas');
+      el.appendChild(canvas);
+      const ctx = canvas.getContext('2d');
+
+      function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = el.clientWidth * dpr;
+        canvas.height = el.clientHeight * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      const symbols = '0123456789+-×÷='.split('');
+      const items = [];
+      for (let i = 0; i < 10; i++) {
+        items.push({
+          x: Math.random() * el.clientWidth,
+          y: Math.random() * el.clientHeight,
+          char: symbols[Math.floor(Math.random() * symbols.length)],
+          size: 14 + Math.random() * 16,
+          vy: -(0.2 + Math.random() * 0.4),
+          wobble: Math.random() * Math.PI * 2,
+          alpha: 0.3 + Math.random() * 0.5,
+          color: ['#e94560', '#2ecc71', '#ffd700', '#eee'][Math.floor(Math.random() * 4)],
+        });
+      }
+
+      function draw() {
+        const w = el.clientWidth, h = el.clientHeight;
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = '#1a0a2e';
+        ctx.fillRect(0, 0, w, h);
+
+        for (const it of items) {
+          it.y += it.vy;
+          it.wobble += 0.015;
+          it.x += Math.sin(it.wobble) * 0.3;
+          if (it.y < -it.size) { it.y = h + it.size; it.x = Math.random() * w; }
+
+          ctx.save();
+          ctx.globalAlpha = it.alpha;
+          ctx.fillStyle = it.color;
+          ctx.font = `bold ${it.size}px system-ui`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(it.char, it.x, it.y);
+          ctx.restore();
+        }
         requestAnimationFrame(draw);
       }
       draw();
