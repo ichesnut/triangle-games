@@ -23,6 +23,7 @@
     "better-sqlite3": "^12.8.0",
     "connect-sqlite3": "^0.9.16",
     "express": "^5.2.1",
-    "express-session": "^1.19.0"
+    "express-session": "^1.19.0",
+    "ws": "^8.20.0"
   }
 }

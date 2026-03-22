@@ -77,9 +77,44 @@ db.exec(`
   )
 `);
 
+// Math Battle game history
+db.exec(`
+  CREATE TABLE IF NOT EXISTS math_battle_games (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    roomCode TEXT NOT NULL,
+    totalRounds INTEGER NOT NULL,
+    finishedAt TEXT NOT NULL
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS math_battle_players (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gameId INTEGER NOT NULL REFERENCES math_battle_games(id),
+    userId INTEGER NOT NULL REFERENCES users(id),
+    roundsWon INTEGER NOT NULL DEFAULT 0,
+    chesnutsEarned INTEGER NOT NULL DEFAULT 0
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS math_battle_rounds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gameId INTEGER NOT NULL REFERENCES math_battle_games(id),
+    roundNumber INTEGER NOT NULL,
+    challenge TEXT NOT NULL,
+    correctAnswer INTEGER NOT NULL,
+    winnerId INTEGER REFERENCES users(id),
+    timeTakenMs INTEGER
+  )
+`);
+
 // Indexes for fast lookups
 db.exec(`CREATE INDEX IF NOT EXISTS idx_attempts_user ON attempt_history(userId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_challenges_category ON challenges(categorySlug)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_redemptions_user ON redemptions(userId)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_players_user ON math_battle_players(userId)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_players_game ON math_battle_players(gameId)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_rounds_game ON math_battle_rounds(gameId)`);
 
 export default db;
