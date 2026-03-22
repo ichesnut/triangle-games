@@ -11,6 +11,8 @@ let chessBoardCtx = null;
 let chessBoard = []; // 8x8 array of piece chars or null
 let selectedSquare = null; // { row, col } of currently selected piece
 let chessTurn = 'w'; // whose turn it is from FEN
+let lastFailedPuzzle = null; // { fen, correctAnswer, challenge } for review/retry
+let isRetryMode = false; // true when retrying a failed puzzle (no server submit)
 
 // Unicode chess pieces
 const PIECE_CHARS = {
@@ -321,6 +323,8 @@ async function showCategories() {
 // ─── Play screen ─────────────────────────────────────────────
 document.getElementById('play-back-btn').addEventListener('click', () => showDashboard(currentUser));
 document.getElementById('next-btn').addEventListener('click', loadNextQuestion);
+document.getElementById('review-btn').addEventListener('click', reviewFailedPuzzle);
+document.getElementById('retry-btn').addEventListener('click', retryFailedPuzzle);
 
 function updateStreakDisplay() {
   const el = document.getElementById('streak-display');
@@ -366,6 +370,12 @@ async function loadNextQuestion() {
   questionCard.style.display = '';
   boardContainer.style.display = 'none';
   selectedSquare = null;
+  isRetryMode = false;
+  document.getElementById('puzzle-review-actions').style.display = 'none';
+  // Clean up any review highlights
+  document.querySelectorAll('.chess-correct-from, .chess-correct-to').forEach(el => el.remove());
+  const existingBackBtn = document.getElementById('review-back-btn');
+  if (existingBackBtn) existingBackBtn.remove();
 
   document.getElementById('q-prompt').textContent = 'Loading...';
   document.getElementById('q-options').innerHTML = '';
@@ -425,6 +435,12 @@ async function loadNextQuestion() {
 async function submitAnswer(answer) {
   const isPuzzle = currentChallenge.type === 'puzzle';
 
+  // Handle retry mode — validate client-side, no server call
+  if (isRetryMode && isPuzzle) {
+    handleRetrySubmit(answer);
+    return;
+  }
+
   // Disable all option buttons immediately (for question type)
   const buttons = document.querySelectorAll('.option-btn');
   buttons.forEach(b => b.disabled = true);
@@ -458,9 +474,16 @@ async function submitAnswer(answer) {
       if (data.correct) {
         instruction.textContent = 'Correct!';
         instruction.style.color = '#b7e4c7';
+        lastFailedPuzzle = null;
       } else {
         instruction.textContent = `The correct move was: ${data.correctAnswer}`;
         instruction.style.color = '#fcd5ce';
+        // Save failed puzzle for review/retry
+        lastFailedPuzzle = {
+          fen: currentChallenge.fen,
+          correctAnswer: data.correctAnswer,
+          challenge: currentChallenge,
+        };
       }
     }
 
@@ -474,6 +497,7 @@ async function submitAnswer(answer) {
     }
 
     // Show result card after a brief delay
+    const showFailedPuzzleActions = isPuzzle && !data.correct;
     setTimeout(() => {
       document.getElementById('question-card').style.display = 'none';
       document.getElementById('chess-board-container').style.display = 'none';
@@ -500,6 +524,10 @@ async function submitAnswer(answer) {
       document.getElementById('r-streak').textContent =
         data.streak > 0 ? `Streak: ${data.streak}` : 'Streak reset';
 
+      // Show review/retry buttons for failed puzzles
+      document.getElementById('puzzle-review-actions').style.display =
+        showFailedPuzzleActions ? '' : 'none';
+
       // Streak banner for milestones
       const banner = document.getElementById('streak-banner');
       if (data.streakBonus > 0) {
@@ -523,6 +551,165 @@ async function submitAnswer(answer) {
     }
     alert(err.message);
   }
+}
+
+// Handle move submission in retry mode (client-side only)
+function handleRetrySubmit(answer) {
+  if (!lastFailedPuzzle) return;
+  const correct = answer.toLowerCase() === lastFailedPuzzle.correctAnswer.toLowerCase();
+  const instruction = document.getElementById('chess-instruction');
+
+  chessBoardCanvas.style.pointerEvents = 'none';
+
+  if (correct) {
+    instruction.textContent = 'Correct! You got it this time.';
+    instruction.style.color = '#b7e4c7';
+  } else {
+    instruction.textContent = `Not quite. The correct move was: ${lastFailedPuzzle.correctAnswer}`;
+    instruction.style.color = '#fcd5ce';
+  }
+
+  // Show result after brief delay, then return to result card
+  setTimeout(() => {
+    isRetryMode = false;
+    document.getElementById('chess-board-container').style.display = 'none';
+    const resultCard = document.getElementById('result-card');
+    resultCard.classList.add('active');
+
+    if (correct) {
+      document.getElementById('r-emoji').textContent = '\u2705';
+      document.getElementById('r-text').textContent = 'You solved it on retry!';
+      // Hide review/retry buttons after successful retry
+      document.getElementById('puzzle-review-actions').style.display = 'none';
+    } else {
+      document.getElementById('r-emoji').textContent = '\u274C';
+      document.getElementById('r-text').textContent =
+        `The correct move was: ${lastFailedPuzzle.correctAnswer}`;
+      // Keep review/retry visible so they can try again
+      document.getElementById('puzzle-review-actions').style.display = '';
+    }
+
+    document.getElementById('r-earnings').textContent = 'Practice mode — no Chesnuts earned';
+    document.getElementById('r-streak').textContent = '';
+
+    if (chessBoardCanvas) {
+      chessBoardCanvas.style.pointerEvents = '';
+      instruction.style.color = '';
+    }
+  }, 1200);
+}
+
+// Review a failed puzzle — show board with correct move highlighted
+function reviewFailedPuzzle() {
+  if (!lastFailedPuzzle) return;
+
+  // Hide result card, show the board
+  document.getElementById('result-card').classList.remove('active');
+  const boardContainer = document.getElementById('chess-board-container');
+  boardContainer.style.display = 'block';
+
+  // Restore the board position
+  const parsed = parseFEN(lastFailedPuzzle.fen);
+  chessBoard = parsed.board;
+  chessTurn = parsed.turn;
+  selectedSquare = null;
+
+  chessBoardCanvas = document.getElementById('chess-canvas');
+  chessBoardCtx = chessBoardCanvas.getContext('2d');
+  chessBoardCanvas.style.pointerEvents = 'none';
+  drawChessBoard();
+
+  // Highlight the correct move squares
+  const move = lastFailedPuzzle.correctAnswer;
+  highlightCorrectMove(move);
+
+  const instruction = document.getElementById('chess-instruction');
+  instruction.textContent = `Correct move: ${move}`;
+  instruction.style.color = '#b7e4c7';
+
+  // Add a "Back" button to return to result card
+  addReviewBackButton(boardContainer);
+}
+
+// Highlight from/to squares of the correct move on the canvas
+function highlightCorrectMove(uciMove) {
+  // Remove any existing highlights
+  document.querySelectorAll('.chess-correct-from, .chess-correct-to').forEach(el => el.remove());
+
+  if (uciMove.length < 4) return;
+  const fromCol = uciMove.charCodeAt(0) - 97;
+  const fromRow = 8 - parseInt(uciMove[1]);
+  const toCol = uciMove.charCodeAt(2) - 97;
+  const toRow = 8 - parseInt(uciMove[3]);
+
+  const canvas = document.getElementById('chess-canvas');
+  const container = document.getElementById('chess-board-container');
+  const sq = canvas.clientWidth / 8;
+
+  const fromEl = document.createElement('div');
+  fromEl.className = 'chess-correct-from';
+  fromEl.style.cssText = `position:absolute;left:${fromCol * sq}px;top:${fromRow * sq}px;width:${sq}px;height:${sq}px;`;
+  container.appendChild(fromEl);
+
+  const toEl = document.createElement('div');
+  toEl.className = 'chess-correct-to';
+  toEl.style.cssText = `position:absolute;left:${toCol * sq}px;top:${toRow * sq}px;width:${sq}px;height:${sq}px;`;
+  container.appendChild(toEl);
+}
+
+// Add a back button during review to return to the result card
+function addReviewBackButton(container) {
+  // Remove existing back button if any
+  const existing = document.getElementById('review-back-btn');
+  if (existing) existing.remove();
+
+  const btn = document.createElement('button');
+  btn.id = 'review-back-btn';
+  btn.className = 'next-btn';
+  btn.style.marginTop = '0.8rem';
+  btn.textContent = 'Back';
+  btn.addEventListener('click', () => {
+    // Clean up highlights and back button
+    document.querySelectorAll('.chess-correct-from, .chess-correct-to').forEach(el => el.remove());
+    btn.remove();
+    container.style.display = 'none';
+    chessBoardCanvas.style.pointerEvents = '';
+    document.getElementById('chess-instruction').style.color = '';
+    document.getElementById('result-card').classList.add('active');
+  });
+  container.appendChild(btn);
+}
+
+// Retry a failed puzzle — reload FEN and let user try again
+function retryFailedPuzzle() {
+  if (!lastFailedPuzzle) return;
+  isRetryMode = true;
+
+  // Hide result card, show the board
+  document.getElementById('result-card').classList.remove('active');
+  document.getElementById('puzzle-review-actions').style.display = 'none';
+  const boardContainer = document.getElementById('chess-board-container');
+  boardContainer.style.display = 'block';
+
+  // Restore the board position
+  const parsed = parseFEN(lastFailedPuzzle.fen);
+  chessBoard = parsed.board;
+  chessTurn = parsed.turn;
+  selectedSquare = null;
+
+  chessBoardCanvas = document.getElementById('chess-canvas');
+  chessBoardCtx = chessBoardCanvas.getContext('2d');
+  chessBoardCanvas.style.pointerEvents = '';
+  drawChessBoard();
+
+  // Clean up any review highlights
+  document.querySelectorAll('.chess-correct-from, .chess-correct-to').forEach(el => el.remove());
+  const existingBackBtn = document.getElementById('review-back-btn');
+  if (existingBackBtn) existingBackBtn.remove();
+
+  const instruction = document.getElementById('chess-instruction');
+  instruction.textContent = 'Try again! Tap a piece, then tap the destination square.';
+  instruction.style.color = '';
 }
 
 // ─── Rewards screen ──────────────────────────────────────────

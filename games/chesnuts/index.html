@@ -349,6 +349,7 @@
     /* Chess board */
     .chess-board-container {
       display: none;
+      position: relative;
       width: 100%;
       max-width: 400px;
       margin: 0 auto;
@@ -592,6 +593,34 @@
 
     .next-btn:active { opacity: 0.8; }
 
+    .puzzle-review-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+      margin-top: 0.8rem;
+    }
+
+    .review-btn, .retry-btn {
+      padding: 0.65rem 1.2rem;
+      border: 2px solid #e94560;
+      border-radius: 10px;
+      background: transparent;
+      color: #e94560;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .review-btn:active, .retry-btn:active { opacity: 0.7; }
+
+    .chess-correct-from, .chess-correct-to {
+      position: absolute;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+    .chess-correct-from { background: rgba(76, 175, 80, 0.45); }
+    .chess-correct-to { background: rgba(76, 175, 80, 0.65); }
+
     /* Streak banner */
     .streak-banner {
       display: none;
@@ -807,6 +836,10 @@
       <div class="result-text" id="r-text"></div>
       <div class="result-earnings" id="r-earnings"></div>
       <div class="result-streak" id="r-streak"></div>
+      <div id="puzzle-review-actions" class="puzzle-review-actions" style="display:none;">
+        <button class="review-btn" id="review-btn">Review Puzzle</button>
+        <button class="retry-btn" id="retry-btn">Retry Puzzle</button>
+      </div>
       <button class="next-btn" id="next-btn">Next Question</button>
     </div>
   </div>
