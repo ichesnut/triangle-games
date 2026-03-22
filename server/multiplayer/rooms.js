@@ -94,28 +94,37 @@ function startRound(room) {
     startedAt: Date.now(),
   };
   room.roundAnswers.clear();
+  room.roundResolved = false;
   room.votesToFinish.clear();
   room.lastActivity = Date.now();
 }
 
 function submitAnswer(room, userId, answer) {
   if (room.state !== 'playing' || !room.currentChallenge) return null;
+  if (room.roundResolved) return null; // round already resolved
   if (room.roundAnswers.has(userId)) return null; // already answered
 
   const numAnswer = Number(answer);
   if (isNaN(numAnswer)) return null;
 
   const correct = numAnswer === room.currentChallenge.answer;
+  // Check if this is the first correct answer in the round
+  let firstCorrect = false;
+  if (correct) {
+    firstCorrect = ![...room.roundAnswers.values()].some(a => a.correct);
+  }
+
   room.roundAnswers.set(userId, {
     answer: numAnswer,
     correct,
     timestamp: Date.now(),
   });
 
-  return { correct, allAnswered: room.roundAnswers.size === room.players.size };
+  return { correct, firstCorrect, allAnswered: room.roundAnswers.size === room.players.size };
 }
 
 function resolveRound(room) {
+  room.roundResolved = true;
   const correctAnswers = [];
   for (const [userId, ans] of room.roundAnswers) {
     if (ans.correct) {

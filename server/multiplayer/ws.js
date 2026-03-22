@@ -186,13 +186,13 @@ export function attachWebSocketServer(httpServer, sessionParser) {
           if (room.state !== 'playing') { sendError(ws, 'No active game'); return; }
 
           const result = submitAnswer(room, userId, msg.answer);
-          if (!result) { sendError(ws, 'Invalid answer or already submitted'); return; }
+          if (!result) return; // round resolved or already submitted — ignore silently
 
           // Let the player know their answer was received
           sendTo(ws, { type: 'answer_received', correct: result.correct });
 
-          // If all players answered, resolve the round
-          if (result.allAnswered) {
+          // Resolve immediately on first correct answer, or when all have answered
+          if (result.firstCorrect || result.allAnswered) {
             const roundResult = resolveRound(room);
             broadcast(room, { type: 'round_result', ...roundResult }, null);
           }
