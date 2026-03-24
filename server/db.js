@@ -1,11 +1,12 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'fs';
-import { dirname } from 'path';
+import { join } from 'path';
 
-const DB_PATH = new URL('../data/chesnuts.db', import.meta.url).pathname;
+const DATA_DIR = process.env.DATA_DIR || new URL('../data', import.meta.url).pathname;
+const DB_PATH = join(DATA_DIR, 'chesnuts.db');
 
 // Ensure data directory exists
-mkdirSync(dirname(DB_PATH), { recursive: true });
+mkdirSync(DATA_DIR, { recursive: true });
 
 const db = new Database(DB_PATH);
 

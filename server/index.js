@@ -1,5 +1,7 @@
 import { randomBytes } from 'crypto';
 import { createServer } from 'http';
+import { fileURLToPath } from 'url';
+import { join, dirname } from 'path';
 import express from 'express';
 import session from 'express-session';
 import connectSqlite3 from 'connect-sqlite3';
@@ -15,18 +17,25 @@ const SQLiteStore = connectSqlite3(session);
 const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 3001;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const DATA_DIR = process.env.DATA_DIR || new URL('../data', import.meta.url).pathname;
 
 // Ensure data directory exists for session store
-mkdirSync(new URL('../data', import.meta.url).pathname, { recursive: true });
+mkdirSync(DATA_DIR, { recursive: true });
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Trust proxy in production (needed for secure cookies behind reverse proxy)
+if (NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
 // Session configuration (shared with WebSocket upgrade handler)
 const sessionParser = session({
   store: new SQLiteStore({
     db: 'sessions.db',
-    dir: new URL('../data', import.meta.url).pathname,
+    dir: DATA_DIR,
   }),
   secret: process.env.SESSION_SECRET || 'triangle-games-dev-secret-change-in-prod',
   resave: false,
@@ -34,6 +43,7 @@ const sessionParser = session({
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
+    secure: NODE_ENV === 'production',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   },
 });
@@ -73,9 +83,20 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Serve static files in production
+if (NODE_ENV === 'production') {
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const distPath = join(__dirname, '..', 'dist');
+  app.use(express.static(distPath));
+  // SPA fallback: serve index.html for non-API routes
+  app.get('*', (req, res) => {
+    res.sendFile(join(distPath, 'index.html'));
+  });
+}
+
 // Attach WebSocket server for multiplayer
 attachWebSocketServer(httpServer, sessionParser);
 
 httpServer.listen(PORT, () => {
-  console.log(`Triangle Games server running on port ${PORT}`);
+  console.log(`Triangle Games server running on port ${PORT} (${NODE_ENV})`);
 });
