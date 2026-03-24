@@ -15,6 +15,7 @@
   "license": "ISC",
   "description": "Simple, fun, mobile-accessible web games",
   "devDependencies": {
+    "@flydotio/dockerfile": "^0.7.10",
     "concurrently": "^9.2.1",
     "vite": "^8.0.1"
   },
