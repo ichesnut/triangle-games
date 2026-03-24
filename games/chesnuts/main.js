@@ -14,6 +14,12 @@ let chessTurn = 'w'; // whose turn it is from FEN
 let lastFailedPuzzle = null; // { fen, correctAnswer, challenge } for review/retry
 let isRetryMode = false; // true when retrying a failed puzzle (no server submit)
 
+// Multi-move puzzle state
+let currentMoveIndex = 0; // which player move we're on (0-indexed)
+let totalPlayerMoves = 1; // total player moves needed to solve
+let opponentMoves = []; // opponent response moves between player moves
+let playerMovesLog = []; // moves the player has made so far (for retry/review)
+
 // Unicode chess pieces
 const PIECE_CHARS = {
   K: '\u2654', Q: '\u2655', R: '\u2656', B: '\u2657', N: '\u2658', P: '\u2659',
@@ -42,6 +48,49 @@ function parseFEN(fen) {
 // Convert row,col to UCI square name (e.g. 0,0 -> "a8", 7,7 -> "h1")
 function squareToUCI(row, col) {
   return String.fromCharCode(97 + col) + (8 - row);
+}
+
+// Apply a UCI move to the board array in-place.
+// Handles basic moves, captures, en passant, castling, and promotion.
+function applyMoveToBoard(board, uciMove) {
+  const fromCol = uciMove.charCodeAt(0) - 97;
+  const fromRow = 8 - parseInt(uciMove[1]);
+  const toCol = uciMove.charCodeAt(2) - 97;
+  const toRow = 8 - parseInt(uciMove[3]);
+  const promotion = uciMove[4]; // optional, e.g. 'q'
+
+  const piece = board[fromRow][fromCol];
+  if (!piece) return;
+  const isWhite = piece === piece.toUpperCase();
+
+  // En passant: pawn captures diagonally to an empty square
+  if (piece.toLowerCase() === 'p' && fromCol !== toCol && !board[toRow][toCol]) {
+    board[fromRow][toCol] = null;
+  }
+
+  // Castling: king moves 2 squares horizontally
+  if (piece.toLowerCase() === 'k' && Math.abs(fromCol - toCol) === 2) {
+    if (toCol > fromCol) {
+      board[fromRow][5] = board[fromRow][7];
+      board[fromRow][7] = null;
+    } else {
+      board[fromRow][3] = board[fromRow][0];
+      board[fromRow][0] = null;
+    }
+  }
+
+  // Move piece (with optional promotion)
+  if (promotion) {
+    board[toRow][toCol] = isWhite ? promotion.toUpperCase() : promotion.toLowerCase();
+  } else {
+    board[toRow][toCol] = piece;
+  }
+  board[fromRow][fromCol] = null;
+}
+
+// Toggle whose turn it is
+function toggleTurn() {
+  chessTurn = chessTurn === 'w' ? 'b' : 'w';
 }
 
 // Draw the chess board on canvas
@@ -406,14 +455,22 @@ async function loadNextQuestion() {
       chessBoard = parsed.board;
       chessTurn = parsed.turn;
 
+      // Init multi-move state
+      currentMoveIndex = 0;
+      totalPlayerMoves = data.challenge.totalPlayerMoves || 1;
+      opponentMoves = data.challenge.opponentMoves || [];
+      playerMovesLog = [];
+
       // Init canvas if needed
       chessBoardCanvas = document.getElementById('chess-canvas');
       chessBoardCtx = chessBoardCanvas.getContext('2d');
       drawChessBoard();
 
       // Show instruction text
-      document.getElementById('chess-instruction').textContent =
-        'Tap a piece, then tap the destination square.';
+      const moveText = totalPlayerMoves > 1
+        ? `Find the winning sequence (${totalPlayerMoves} moves). Tap a piece, then tap the destination.`
+        : 'Tap a piece, then tap the destination square.';
+      document.getElementById('chess-instruction').textContent = moveText;
     } else {
       // Multiple-choice question
       const optionsGrid = document.getElementById('q-options');
@@ -456,6 +513,7 @@ async function submitAnswer(answer) {
       body: JSON.stringify({
         challengeId: currentChallenge.id,
         answer,
+        moveIndex: isPuzzle ? currentMoveIndex : undefined,
       }),
     });
 
@@ -468,15 +526,63 @@ async function submitAnswer(answer) {
           btn.classList.add('wrong');
         }
       });
+    } else if (data.correct && !data.completed) {
+      // Correct intermediate move in a multi-move puzzle
+      playerMovesLog.push(answer);
+      const instruction = document.getElementById('chess-instruction');
+
+      // Apply the player's move to the board
+      applyMoveToBoard(chessBoard, answer);
+      toggleTurn();
+      selectedSquare = null;
+      drawChessBoard();
+
+      // Show brief feedback then auto-play opponent response
+      instruction.textContent = 'Correct!';
+      instruction.style.color = '#b7e4c7';
+
+      setTimeout(() => {
+        if (data.opponentMove) {
+          // Animate opponent response
+          instruction.textContent = 'Opponent responds...';
+          instruction.style.color = '';
+          applyMoveToBoard(chessBoard, data.opponentMove);
+          toggleTurn();
+          selectedSquare = null;
+          drawChessBoard();
+        }
+
+        // Advance to next player move
+        currentMoveIndex = data.nextMoveIndex;
+        setTimeout(() => {
+          const remaining = totalPlayerMoves - currentMoveIndex;
+          instruction.textContent = remaining > 1
+            ? `Good! ${remaining} moves left. Find the next move.`
+            : 'Find the final move!';
+          instruction.style.color = '';
+          chessBoardCanvas.style.pointerEvents = '';
+        }, 400);
+      }, 600);
+
+      return; // Don't show result card yet
     } else {
-      // For puzzles, update the instruction text with result
+      // Final move or wrong move — puzzle completed
       const instruction = document.getElementById('chess-instruction');
       if (data.correct) {
-        instruction.textContent = 'Correct!';
+        playerMovesLog.push(answer);
+        // Apply the final move visually
+        applyMoveToBoard(chessBoard, answer);
+        toggleTurn();
+        selectedSquare = null;
+        drawChessBoard();
+
+        instruction.textContent = totalPlayerMoves > 1 ? 'Brilliant! Sequence complete!' : 'Correct!';
         instruction.style.color = '#b7e4c7';
         lastFailedPuzzle = null;
       } else {
-        instruction.textContent = `The correct move was: ${data.correctAnswer}`;
+        instruction.textContent = totalPlayerMoves > 1
+          ? `Wrong. The correct sequence was: ${data.correctAnswer.replace(/,/g, ' → ')}`
+          : `The correct move was: ${data.correctAnswer}`;
         instruction.style.color = '#fcd5ce';
         // Save failed puzzle for review/retry
         lastFailedPuzzle = {
@@ -488,8 +594,10 @@ async function submitAnswer(answer) {
     }
 
     // Update user stats and streak display
-    updateDashboardStats(data.user);
-    updateStreakDisplay();
+    if (data.user) {
+      updateDashboardStats(data.user);
+      updateStreakDisplay();
+    }
 
     // Chesnut earning animation
     if (data.chesnutsEarned > 0) {
@@ -506,11 +614,15 @@ async function submitAnswer(answer) {
 
       if (data.correct) {
         document.getElementById('r-emoji').textContent = '\u2705';
-        document.getElementById('r-text').textContent = 'Correct!';
+        document.getElementById('r-text').textContent = totalPlayerMoves > 1
+          ? `Brilliant! You solved the ${totalPlayerMoves}-move sequence!`
+          : 'Correct!';
       } else {
         document.getElementById('r-emoji').textContent = '\u274C';
         const answerText = isPuzzle
-          ? `The correct move was: ${data.correctAnswer}`
+          ? (totalPlayerMoves > 1
+            ? `The correct sequence was: ${data.correctAnswer.replace(/,/g, ' → ')}`
+            : `The correct move was: ${data.correctAnswer}`)
           : `The answer was: ${data.correctAnswer}`;
         document.getElementById('r-text').textContent = answerText;
       }
@@ -553,23 +665,73 @@ async function submitAnswer(answer) {
   }
 }
 
-// Handle move submission in retry mode (client-side only)
+// Handle move submission in retry mode (client-side only, supports multi-move)
 function handleRetrySubmit(answer) {
   if (!lastFailedPuzzle) return;
-  const correct = answer.toLowerCase() === lastFailedPuzzle.correctAnswer.toLowerCase();
+
+  const solutionMoves = lastFailedPuzzle.correctAnswer.split(',');
+  const expectedMove = solutionMoves[currentMoveIndex];
+  const correct = answer.toLowerCase() === (expectedMove || '').toLowerCase();
   const instruction = document.getElementById('chess-instruction');
+  const isFinalMove = currentMoveIndex >= solutionMoves.length - 1;
 
   chessBoardCanvas.style.pointerEvents = 'none';
 
+  if (correct && !isFinalMove) {
+    // Correct intermediate move in retry mode
+    playerMovesLog.push(answer);
+    applyMoveToBoard(chessBoard, answer);
+    toggleTurn();
+    selectedSquare = null;
+    drawChessBoard();
+
+    instruction.textContent = 'Correct!';
+    instruction.style.color = '#b7e4c7';
+
+    const retryOpponentMoves = lastFailedPuzzle.challenge.opponentMoves || [];
+    setTimeout(() => {
+      // Auto-play opponent response
+      const opMove = retryOpponentMoves[currentMoveIndex];
+      if (opMove) {
+        instruction.textContent = 'Opponent responds...';
+        instruction.style.color = '';
+        applyMoveToBoard(chessBoard, opMove);
+        toggleTurn();
+        selectedSquare = null;
+        drawChessBoard();
+      }
+
+      currentMoveIndex++;
+      setTimeout(() => {
+        const remaining = solutionMoves.length - currentMoveIndex;
+        instruction.textContent = remaining > 1
+          ? `Good! ${remaining} moves left. Find the next move.`
+          : 'Find the final move!';
+        instruction.style.color = '';
+        chessBoardCanvas.style.pointerEvents = '';
+      }, 400);
+    }, 600);
+    return;
+  }
+
+  // Final move or wrong
   if (correct) {
-    instruction.textContent = 'Correct! You got it this time.';
+    playerMovesLog.push(answer);
+    applyMoveToBoard(chessBoard, answer);
+    toggleTurn();
+    selectedSquare = null;
+    drawChessBoard();
+    instruction.textContent = solutionMoves.length > 1 ? 'Brilliant! You solved the sequence!' : 'Correct! You got it this time.';
     instruction.style.color = '#b7e4c7';
   } else {
-    instruction.textContent = `Not quite. The correct move was: ${lastFailedPuzzle.correctAnswer}`;
+    const displayAnswer = solutionMoves.length > 1
+      ? solutionMoves.join(' → ')
+      : lastFailedPuzzle.correctAnswer;
+    instruction.textContent = `Not quite. The correct ${solutionMoves.length > 1 ? 'sequence' : 'move'} was: ${displayAnswer}`;
     instruction.style.color = '#fcd5ce';
   }
 
-  // Show result after brief delay, then return to result card
+  // Show result after brief delay
   setTimeout(() => {
     isRetryMode = false;
     document.getElementById('chess-board-container').style.display = 'none';
@@ -579,13 +741,14 @@ function handleRetrySubmit(answer) {
     if (correct) {
       document.getElementById('r-emoji').textContent = '\u2705';
       document.getElementById('r-text').textContent = 'You solved it on retry!';
-      // Hide review/retry buttons after successful retry
       document.getElementById('puzzle-review-actions').style.display = 'none';
     } else {
       document.getElementById('r-emoji').textContent = '\u274C';
+      const displayAnswer = solutionMoves.length > 1
+        ? solutionMoves.join(' → ')
+        : lastFailedPuzzle.correctAnswer;
       document.getElementById('r-text').textContent =
-        `The correct move was: ${lastFailedPuzzle.correctAnswer}`;
-      // Keep review/retry visible so they can try again
+        `The correct ${solutionMoves.length > 1 ? 'sequence' : 'move'} was: ${displayAnswer}`;
       document.getElementById('puzzle-review-actions').style.display = '';
     }
 
@@ -599,7 +762,8 @@ function handleRetrySubmit(answer) {
   }, 1200);
 }
 
-// Review a failed puzzle — show board with correct move highlighted
+// Review a failed puzzle — show board with correct move(s) highlighted
+// For multi-move puzzles, animates through the full solution sequence.
 function reviewFailedPuzzle() {
   if (!lastFailedPuzzle) return;
 
@@ -619,16 +783,58 @@ function reviewFailedPuzzle() {
   chessBoardCanvas.style.pointerEvents = 'none';
   drawChessBoard();
 
-  // Highlight the correct move squares
-  const move = lastFailedPuzzle.correctAnswer;
-  highlightCorrectMove(move);
-
+  const solutionMoves = lastFailedPuzzle.correctAnswer.split(',');
+  const reviewOpponentMoves = lastFailedPuzzle.challenge.opponentMoves || [];
   const instruction = document.getElementById('chess-instruction');
-  instruction.textContent = `Correct move: ${move}`;
-  instruction.style.color = '#b7e4c7';
 
-  // Add a "Back" button to return to result card
-  addReviewBackButton(boardContainer);
+  if (solutionMoves.length === 1) {
+    // Single-move: just highlight
+    highlightCorrectMove(solutionMoves[0]);
+    instruction.textContent = `Correct move: ${solutionMoves[0]}`;
+    instruction.style.color = '#b7e4c7';
+    addReviewBackButton(boardContainer);
+  } else {
+    // Multi-move: animate through the sequence
+    instruction.textContent = `Solution: ${solutionMoves.join(' → ')}`;
+    instruction.style.color = '#b7e4c7';
+
+    let step = 0;
+    function animateNextStep() {
+      if (step >= solutionMoves.length) {
+        addReviewBackButton(boardContainer);
+        return;
+      }
+
+      // Highlight and apply player move
+      const playerMove = solutionMoves[step];
+      document.querySelectorAll('.chess-correct-from, .chess-correct-to').forEach(el => el.remove());
+      highlightCorrectMove(playerMove);
+
+      setTimeout(() => {
+        applyMoveToBoard(chessBoard, playerMove);
+        toggleTurn();
+        drawChessBoard();
+        document.querySelectorAll('.chess-correct-from, .chess-correct-to').forEach(el => el.remove());
+
+        // Apply opponent response if any
+        const opMove = reviewOpponentMoves[step];
+        if (opMove) {
+          setTimeout(() => {
+            applyMoveToBoard(chessBoard, opMove);
+            toggleTurn();
+            drawChessBoard();
+            step++;
+            setTimeout(animateNextStep, 600);
+          }, 500);
+        } else {
+          step++;
+          setTimeout(animateNextStep, 600);
+        }
+      }, 800);
+    }
+
+    animateNextStep();
+  }
 }
 
 // Highlight from/to squares of the correct move on the canvas
@@ -697,6 +903,13 @@ function retryFailedPuzzle() {
   chessTurn = parsed.turn;
   selectedSquare = null;
 
+  // Reset multi-move state for retry
+  const solutionMoves = lastFailedPuzzle.correctAnswer.split(',');
+  currentMoveIndex = 0;
+  totalPlayerMoves = solutionMoves.length;
+  opponentMoves = lastFailedPuzzle.challenge.opponentMoves || [];
+  playerMovesLog = [];
+
   chessBoardCanvas = document.getElementById('chess-canvas');
   chessBoardCtx = chessBoardCanvas.getContext('2d');
   chessBoardCanvas.style.pointerEvents = '';
@@ -708,7 +921,10 @@ function retryFailedPuzzle() {
   if (existingBackBtn) existingBackBtn.remove();
 
   const instruction = document.getElementById('chess-instruction');
-  instruction.textContent = 'Try again! Tap a piece, then tap the destination square.';
+  const moveText = totalPlayerMoves > 1
+    ? `Try again! Find the ${totalPlayerMoves}-move sequence.`
+    : 'Try again! Tap a piece, then tap the destination square.';
+  instruction.textContent = moveText;
   instruction.style.color = '';
 }
 

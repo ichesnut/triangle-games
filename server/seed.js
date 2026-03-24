@@ -64,12 +64,24 @@ export function seedChessPuzzles() {
 
   const insertMany = db.transaction((puzzles) => {
     for (const p of puzzles) {
+      // Build data JSON: fen + opponentMoves for multi-move puzzles
+      const data = { fen: p.fen };
+      if (p.opponentMoves && p.opponentMoves.length > 0) {
+        data.opponentMoves = p.opponentMoves;
+      }
+
+      // Prompt reflects number of player moves
+      const playerMoveCount = p.solution.split(',').length;
+      const prompt = playerMoveCount > 1
+        ? `${p.theme}: Find the winning sequence (${playerMoveCount} moves)`
+        : `${p.theme}: Find the winning move`;
+
       insert.run(
         'chess-puzzles',
         p.difficulty,
-        `${p.theme}: Find the winning move`,
-        JSON.stringify({ fen: p.fen }),
-        p.solution,
+        prompt,
+        JSON.stringify(data),
+        p.solution,  // comma-separated player moves for multi-move
         CHESS_REWARD_MAP[p.difficulty]
       );
     }

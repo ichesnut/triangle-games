@@ -94,20 +94,24 @@ router.get('/next', requireAuth, (req, res) => {
 
   // For puzzle-type challenges, return board data instead of multiple-choice options
   if (challenge.type === 'puzzle') {
-    const data = JSON.parse(
-      db.prepare('SELECT data FROM challenges WHERE id = ?').get(challenge.id).data
-    );
-    return res.json({
-      challenge: {
-        id: challenge.id,
-        category: challenge.categorySlug,
-        type: 'puzzle',
-        difficulty: challenge.difficulty,
-        prompt: challenge.prompt,
-        reward: challenge.chesnutReward,
-        fen: data.fen,
-      },
-    });
+    const fullChallenge = db.prepare('SELECT data, answer FROM challenges WHERE id = ?').get(challenge.id);
+    const data = JSON.parse(fullChallenge.data);
+    const playerMoves = fullChallenge.answer.split(',');
+    const puzzleResponse = {
+      id: challenge.id,
+      category: challenge.categorySlug,
+      type: 'puzzle',
+      difficulty: challenge.difficulty,
+      prompt: challenge.prompt,
+      reward: challenge.chesnutReward,
+      fen: data.fen,
+      totalPlayerMoves: playerMoves.length,
+    };
+    // Include opponent response moves for multi-move puzzles (not the solution!)
+    if (data.opponentMoves && data.opponentMoves.length > 0) {
+      puzzleResponse.opponentMoves = data.opponentMoves;
+    }
+    return res.json({ challenge: puzzleResponse });
   }
 
   // Generate multiple-choice options for question-type challenges
@@ -127,8 +131,12 @@ router.get('/next', requireAuth, (req, res) => {
 });
 
 // POST /answer — submit an answer
+// For multi-move puzzles, accepts moveIndex to validate one move at a time.
+// When moveIndex < totalPlayerMoves - 1 and correct, returns the next opponent
+// move without scoring. Scoring happens only on the final correct move.
 router.post('/answer', requireAuth, rateLimitAnswers, (req, res) => {
-  const { challengeId, answer } = req.body;
+  const { challengeId, answer, moveIndex } = req.body;
+  const stepIndex = typeof moveIndex === 'number' ? moveIndex : 0;
 
   if (!challengeId || answer === undefined || answer === null) {
     return res.status(400).json({ error: 'challengeId and answer are required' });
@@ -139,10 +147,29 @@ router.post('/answer', requireAuth, rateLimitAnswers, (req, res) => {
     return res.status(404).json({ error: 'Challenge not found' });
   }
 
-  const userId = req.session.userId;
-  const correct = answer.trim().toLowerCase() === challenge.answer.trim().toLowerCase();
+  const solutionMoves = challenge.answer.split(',');
+  const totalPlayerMoves = solutionMoves.length;
+  const data = JSON.parse(challenge.data);
 
-  // Calculate earnings with streak bonuses
+  // Validate the specific move
+  const expectedMove = solutionMoves[stepIndex];
+  const correct = answer.trim().toLowerCase() === (expectedMove || '').trim().toLowerCase();
+  const isFinalMove = stepIndex >= totalPlayerMoves - 1;
+
+  // If correct but not the final move, return intermediate result with opponent's next move
+  if (correct && !isFinalMove) {
+    const opponentMove = data.opponentMoves ? data.opponentMoves[stepIndex] : null;
+    return res.json({
+      correct: true,
+      completed: false,
+      opponentMove,
+      nextMoveIndex: stepIndex + 1,
+      totalPlayerMoves,
+    });
+  }
+
+  // Final move (correct or wrong) — score the attempt
+  const userId = req.session.userId;
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
   let chesnutsEarned = 0;
   let newStreak = user.currentStreak;
@@ -191,6 +218,7 @@ router.post('/answer', requireAuth, rateLimitAnswers, (req, res) => {
 
   res.json({
     correct,
+    completed: true,
     correctAnswer: challenge.answer,
     chesnutsEarned,
     streakBonus,
