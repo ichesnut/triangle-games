@@ -61,6 +61,12 @@ export function seedChessPuzzles() {
 
   if (existing.count > 0) {
     console.log(`Replacing ${existing.count} chess puzzles with ${puzzles.length} from updated seed...`);
+    // Delete attempt history for old chess puzzles first (FK constraint)
+    db.prepare(`
+      DELETE FROM attempt_history WHERE challengeId IN (
+        SELECT id FROM challenges WHERE categorySlug = 'chess-puzzles'
+      )
+    `).run();
     db.prepare("DELETE FROM challenges WHERE categorySlug = 'chess-puzzles'").run();
   }
 
