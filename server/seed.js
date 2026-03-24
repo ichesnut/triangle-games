@@ -49,13 +49,20 @@ export function seedSpanishVocab() {
 }
 
 export function seedChessPuzzles() {
+  const puzzles = JSON.parse(readFileSync(CHESS_PATH, 'utf-8'));
+
   const existing = db.prepare(
     "SELECT COUNT(*) as count FROM challenges WHERE categorySlug = 'chess-puzzles'"
   ).get();
 
-  if (existing.count > 0) return;
+  // Re-seed if the seed file has significantly more puzzles than the DB
+  // (handles upgrades from old 20-puzzle set to Lichess bulk import)
+  if (existing.count > 0 && existing.count >= puzzles.length) return;
 
-  const puzzles = JSON.parse(readFileSync(CHESS_PATH, 'utf-8'));
+  if (existing.count > 0) {
+    console.log(`Replacing ${existing.count} chess puzzles with ${puzzles.length} from updated seed...`);
+    db.prepare("DELETE FROM challenges WHERE categorySlug = 'chess-puzzles'").run();
+  }
 
   const insert = db.prepare(`
     INSERT INTO challenges (categorySlug, type, difficulty, prompt, data, answer, chesnutReward)
