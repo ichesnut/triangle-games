@@ -141,15 +141,6 @@
 
   <ul class="game-grid">
     <li>
-      <a href="/games/triangle-tap/" class="game-card">
-        <div class="card-preview" id="preview-triangle-tap"></div>
-        <div class="card-body">
-          <div class="card-title">Triangle Tap</div>
-          <div class="card-desc">Tap fast! Hit the triangles before they vanish. How high can you score?</div>
-        </div>
-      </a>
-    </li>
-    <li>
       <a href="/games/chesnuts/" class="game-card">
         <div class="card-preview" id="preview-chesnuts"></div>
         <div class="card-body">
@@ -174,76 +165,6 @@
   </div>
 
   <script>
-    // Draw animated preview thumbnails for each game card
-    (function() {
-      const el = document.getElementById('preview-triangle-tap');
-      if (!el) return;
-
-      const canvas = document.createElement('canvas');
-      el.appendChild(canvas);
-      const ctx = canvas.getContext('2d');
-
-      function resize() {
-        const dpr = window.devicePixelRatio || 1;
-        const w = el.clientWidth;
-        const h = el.clientHeight;
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      }
-      resize();
-      window.addEventListener('resize', resize);
-
-      // Floating triangles animation
-      const colors = ['#e94560', '#0f3460', '#533483', '#16213e'];
-      const triangles = [];
-      for (let i = 0; i < 6; i++) {
-        triangles.push({
-          x: Math.random() * el.clientWidth,
-          y: Math.random() * el.clientHeight,
-          size: 12 + Math.random() * 20,
-          rotation: Math.random() * Math.PI * 2,
-          speed: 0.3 + Math.random() * 0.5,
-          rotSpeed: (Math.random() - 0.5) * 2,
-          color: colors[Math.floor(Math.random() * colors.length)],
-          alpha: 0.4 + Math.random() * 0.5,
-        });
-      }
-
-      function draw() {
-        const w = el.clientWidth;
-        const h = el.clientHeight;
-        ctx.clearRect(0, 0, w, h);
-        ctx.fillStyle = '#0f3460';
-        ctx.fillRect(0, 0, w, h);
-
-        for (const t of triangles) {
-          t.y -= t.speed;
-          t.rotation += t.rotSpeed * 0.016;
-          if (t.y < -t.size * 2) {
-            t.y = h + t.size;
-            t.x = Math.random() * w;
-          }
-
-          ctx.save();
-          ctx.globalAlpha = t.alpha;
-          ctx.fillStyle = t.color;
-          ctx.translate(t.x, t.y);
-          ctx.rotate(t.rotation);
-          ctx.beginPath();
-          ctx.moveTo(0, -t.size);
-          ctx.lineTo(t.size * 0.87, t.size * 0.5);
-          ctx.lineTo(-t.size * 0.87, t.size * 0.5);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
-        }
-
-        requestAnimationFrame(draw);
-      }
-      draw();
-    })();
-
     // Math Battle preview: floating numbers and operators
     (function() {
       const el = document.getElementById('preview-math-battle');
