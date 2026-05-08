@@ -47,8 +47,9 @@
     }
 
     .game-grid {
-      display: grid;
-      grid-template-columns: 1fr;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
       gap: 1rem;
       width: 100%;
       max-width: 480px;
@@ -56,10 +57,18 @@
       padding: 0;
     }
 
+    .game-grid > li {
+      flex: 1 1 100%;
+      min-width: 0;
+    }
+
     @media (min-width: 600px) {
       .game-grid {
         max-width: 720px;
-        grid-template-columns: repeat(2, 1fr);
+      }
+      .game-grid > li {
+        flex: 0 1 calc(50% - 0.5rem);
+        min-width: 280px;
       }
     }
 
