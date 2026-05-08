@@ -47,6 +47,7 @@ function freshQFormState() {
   return {
     type: 'free',
     prompt: '',
+    categoryId: null,
     freeAnswers: '',
     options: ['', ''],
     correctAnswers: [],
@@ -239,7 +240,16 @@ async function reloadEditingQuiz() {
     editingQuiz = data.quiz;
     titleEl.textContent = editingQuiz.name;
     metaEl.textContent = `${editingQuiz.questions.length} question${editingQuiz.questions.length === 1 ? '' : 's'}`;
+
+    const cats = editingQuiz.categories || [];
+    // Drop a stale categoryId selection that was just deleted.
+    if (qFormState.categoryId != null
+        && !cats.some(c => c.id === qFormState.categoryId)) {
+      qFormState.categoryId = null;
+    }
+    renderCategories();
     renderQuestions();
+    renderCategoryOptions();
   } catch (err) {
     titleEl.textContent = 'Error';
     metaEl.textContent = err.message;
@@ -260,51 +270,92 @@ function renderQuestions() {
     list.innerHTML = '<div class="empty-state">No questions yet. Add one below!</div>';
     return;
   }
-  editingQuiz.questions.forEach((q, i) => {
-    const li = document.createElement('li');
-    li.className = 'question-card';
 
-    const answerSummary = q.type === 'free'
-      ? `Accepts: ${q.correctAnswers.join(' / ')}`
-      : q.options
-        .map((o, idx) => `${q.correctAnswers.includes(idx) ? '✓' : '·'} ${o}`)
-        .join(' · ');
+  // Group questions by category, preserving server-supplied play order.
+  const cats = editingQuiz.categories || [];
+  const groups = new Map(); // categoryId | null → questions
+  for (const c of cats) groups.set(c.id, []);
+  groups.set(null, []);
+  for (const q of editingQuiz.questions) {
+    const key = q.categoryId ?? null;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(q);
+  }
 
-    li.innerHTML = `
-      <div class="question-head">
-        <span class="question-pos">${i + 1}</span>
-        <span class="question-type-tag">${q.type}</span>
-      </div>
-      <div class="question-prompt">${escapeHtml(q.prompt)}</div>
-      <div class="question-answers">${escapeHtml(answerSummary)}</div>
-      <div class="question-actions">
-        <button class="btn btn-secondary btn-small" data-act="up" ${i === 0 ? 'disabled' : ''}>&uarr;</button>
-        <button class="btn btn-secondary btn-small" data-act="down" ${i === editingQuiz.questions.length - 1 ? 'disabled' : ''}>&darr;</button>
-        <button class="btn btn-secondary btn-small" data-act="edit">Edit</button>
-        <button class="btn btn-danger btn-small" data-act="delete">Delete</button>
-      </div>
-    `;
-    li.querySelector('[data-act="up"]').addEventListener('click', () => moveQuestion(q.id, -1));
-    li.querySelector('[data-act="down"]').addEventListener('click', () => moveQuestion(q.id, 1));
-    li.querySelector('[data-act="edit"]').addEventListener('click', () => startEditQuestion(q));
-    li.querySelector('[data-act="delete"]').addEventListener('click', async () => {
-      if (!confirm('Delete this question?')) return;
-      try {
-        await api(`/quizzes/${editingQuizId}/questions/${q.id}`, { method: 'DELETE' });
-        await reloadEditingQuiz();
-      } catch (err) {
-        document.getElementById('q-form-error').textContent = err.message;
-      }
+  // Stable display order: categories in their position order, then uncategorized.
+  const orderedKeys = [...cats.map(c => c.id), null];
+  let displayIndex = 0;
+  for (const key of orderedKeys) {
+    const items = groups.get(key) || [];
+    if (!items.length) continue;
+    const head = document.createElement('div');
+    head.className = 'question-group-head';
+    head.textContent = key == null
+      ? 'Uncategorized'
+      : (cats.find(c => c.id === key)?.name || 'Category');
+    list.appendChild(head);
+
+    items.forEach((q, idxInGroup) => {
+      displayIndex++;
+      const li = document.createElement('li');
+      li.className = 'question-card';
+
+      const answerSummary = q.type === 'free'
+        ? `Accepts: ${q.correctAnswers.join(' / ')}`
+        : q.options
+          .map((o, idx) => `${q.correctAnswers.includes(idx) ? '✓' : '·'} ${o}`)
+          .join(' · ');
+
+      const isFirst = idxInGroup === 0;
+      const isLast = idxInGroup === items.length - 1;
+
+      li.innerHTML = `
+        <div class="question-head">
+          <span class="question-pos">${displayIndex}</span>
+          <span class="question-type-tag">${q.type}</span>
+        </div>
+        <div class="question-prompt">${escapeHtml(q.prompt)}</div>
+        <div class="question-answers">${escapeHtml(answerSummary)}</div>
+        <div class="question-actions">
+          <button class="btn btn-secondary btn-small" data-act="up" ${isFirst ? 'disabled' : ''}>&uarr;</button>
+          <button class="btn btn-secondary btn-small" data-act="down" ${isLast ? 'disabled' : ''}>&darr;</button>
+          <button class="btn btn-secondary btn-small" data-act="edit">Edit</button>
+          <button class="btn btn-danger btn-small" data-act="delete">Delete</button>
+        </div>
+      `;
+      li.querySelector('[data-act="up"]').addEventListener('click', () => moveQuestion(q.id, -1));
+      li.querySelector('[data-act="down"]').addEventListener('click', () => moveQuestion(q.id, 1));
+      li.querySelector('[data-act="edit"]').addEventListener('click', () => startEditQuestion(q));
+      li.querySelector('[data-act="delete"]').addEventListener('click', async () => {
+        if (!confirm('Delete this question?')) return;
+        try {
+          await api(`/quizzes/${editingQuizId}/questions/${q.id}`, { method: 'DELETE' });
+          await reloadEditingQuiz();
+        } catch (err) {
+          document.getElementById('q-form-error').textContent = err.message;
+        }
+      });
+      list.appendChild(li);
     });
-    list.appendChild(li);
-  });
+  }
 }
 
+// Swap a question with its same-category neighbor, then send the full
+// global order to the server so positions stay unique.
 async function moveQuestion(qId, delta) {
-  const ids = editingQuiz.questions.map(q => q.id);
-  const i = ids.indexOf(qId);
-  const j = i + delta;
-  if (i < 0 || j < 0 || j >= ids.length) return;
+  const all = editingQuiz.questions;
+  const i = all.findIndex(q => q.id === qId);
+  if (i < 0) return;
+
+  // Find the neighbor in the same category, in the same direction.
+  const cat = all[i].categoryId ?? null;
+  let j = i + delta;
+  while (j >= 0 && j < all.length && (all[j].categoryId ?? null) !== cat) {
+    j += delta;
+  }
+  if (j < 0 || j >= all.length) return;
+
+  const ids = all.map(q => q.id);
   [ids[i], ids[j]] = [ids[j], ids[i]];
   try {
     await api(`/quizzes/${editingQuizId}/questions/reorder`, {
@@ -317,11 +368,147 @@ async function moveQuestion(qId, delta) {
   }
 }
 
+// ── Categories UI ──────────────────────────────────────
+function renderCategories() {
+  const list = document.getElementById('category-list');
+  list.innerHTML = '';
+  const cats = editingQuiz.categories || [];
+  if (!cats.length) {
+    const empty = document.createElement('li');
+    empty.className = 'cat-empty';
+    empty.textContent = 'No categories yet. Add one to group your questions.';
+    list.appendChild(empty);
+    return;
+  }
+  cats.forEach((c, i) => {
+    const li = document.createElement('li');
+    li.className = 'category-row';
+    const isFirst = i === 0;
+    const isLast = i === cats.length - 1;
+    li.innerHTML = `
+      <span class="cat-name"></span>
+      <button class="icon-btn" data-act="up" title="Move up" ${isFirst ? 'disabled' : ''}>&uarr;</button>
+      <button class="icon-btn" data-act="down" title="Move down" ${isLast ? 'disabled' : ''}>&darr;</button>
+      <button class="icon-btn" data-act="rename" title="Rename">&#9998;</button>
+      <button class="icon-btn" data-act="delete" title="Delete">&times;</button>
+    `;
+    li.querySelector('.cat-name').textContent = c.name;
+    li.querySelector('[data-act="up"]').addEventListener('click', () => moveCategory(c.id, -1));
+    li.querySelector('[data-act="down"]').addEventListener('click', () => moveCategory(c.id, 1));
+    li.querySelector('[data-act="rename"]').addEventListener('click', () => startRenameCategory(li, c));
+    li.querySelector('[data-act="delete"]').addEventListener('click', () => deleteCategory(c));
+    list.appendChild(li);
+  });
+}
+
+function startRenameCategory(li, cat) {
+  const nameEl = li.querySelector('.cat-name');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 60;
+  input.className = 'cat-name-input';
+  input.value = cat.name;
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const commit = async () => {
+    const newName = input.value.trim();
+    if (!newName || newName === cat.name) { renderCategories(); return; }
+    try {
+      await api(`/quizzes/${editingQuizId}/categories/${cat.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: newName }),
+      });
+      await reloadEditingQuiz();
+    } catch (err) {
+      document.getElementById('category-error').textContent = err.message;
+      renderCategories();
+    }
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { renderCategories(); }
+  });
+}
+
+async function deleteCategory(cat) {
+  if (!confirm(`Delete category "${cat.name}"? Questions in it will become uncategorized.`)) return;
+  try {
+    await api(`/quizzes/${editingQuizId}/categories/${cat.id}`, { method: 'DELETE' });
+    await reloadEditingQuiz();
+  } catch (err) {
+    document.getElementById('category-error').textContent = err.message;
+  }
+}
+
+async function moveCategory(cId, delta) {
+  const cats = editingQuiz.categories || [];
+  const ids = cats.map(c => c.id);
+  const i = ids.indexOf(cId);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  try {
+    await api(`/quizzes/${editingQuizId}/categories/reorder`, {
+      method: 'PATCH',
+      body: JSON.stringify({ order: ids }),
+    });
+    await reloadEditingQuiz();
+  } catch (err) {
+    document.getElementById('category-error').textContent = err.message;
+  }
+}
+
+document.getElementById('new-category-btn').addEventListener('click', async () => {
+  const input = document.getElementById('new-category-name');
+  const errEl = document.getElementById('category-error');
+  errEl.textContent = '';
+  const name = input.value.trim();
+  if (!name) { errEl.textContent = 'Enter a category name'; return; }
+  try {
+    await api(`/quizzes/${editingQuizId}/categories`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+    input.value = '';
+    await reloadEditingQuiz();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+});
+
+document.getElementById('new-category-name').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    document.getElementById('new-category-btn').click();
+  }
+});
+
+function renderCategoryOptions() {
+  const sel = document.getElementById('q-category');
+  const cats = editingQuiz.categories || [];
+  sel.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = 'Uncategorized';
+  sel.appendChild(none);
+  for (const c of cats) {
+    const opt = document.createElement('option');
+    opt.value = String(c.id);
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  }
+  sel.value = qFormState.categoryId == null ? '' : String(qFormState.categoryId);
+}
+
 function startEditQuestion(q) {
   editingQuestionId = q.id;
   qFormState = {
     type: q.type,
     prompt: q.prompt,
+    categoryId: q.categoryId ?? null,
     freeAnswers: q.type === 'free' ? q.correctAnswers.join('\n') : '',
     options: q.type === 'free' ? ['', ''] : [...q.options],
     correctAnswers: q.type === 'free' ? [] : [...q.correctAnswers],
@@ -342,6 +529,11 @@ function renderQForm() {
   document.getElementById('q-prompt').value = qFormState.prompt;
   document.getElementById('q-type').value = qFormState.type;
   document.getElementById('q-free-answers').value = qFormState.freeAnswers;
+
+  const sel = document.getElementById('q-category');
+  if (sel.options.length) {
+    sel.value = qFormState.categoryId == null ? '' : String(qFormState.categoryId);
+  }
 
   const isFree = qFormState.type === 'free';
   document.getElementById('q-free-area').style.display = isFree ? '' : 'none';
@@ -403,6 +595,11 @@ document.getElementById('q-type').addEventListener('change', (e) => {
   renderQForm();
 });
 
+document.getElementById('q-category').addEventListener('change', (e) => {
+  const v = e.target.value;
+  qFormState.categoryId = v === '' ? null : Number(v);
+});
+
 document.getElementById('q-free-answers').addEventListener('input', (e) => {
   qFormState.freeAnswers = e.target.value;
 });
@@ -419,7 +616,11 @@ document.getElementById('q-save-btn').addEventListener('click', async () => {
   const errEl = document.getElementById('q-form-error');
   errEl.textContent = '';
 
-  const payload = { prompt: qFormState.prompt, type: qFormState.type };
+  const payload = {
+    prompt: qFormState.prompt,
+    type: qFormState.type,
+    categoryId: qFormState.categoryId,
+  };
   if (qFormState.type === 'free') {
     payload.correctAnswers = qFormState.freeAnswers
       .split('\n').map(s => s.trim()).filter(Boolean);

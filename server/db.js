@@ -89,9 +89,19 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS quiz_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    quizId INTEGER NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    name TEXT NOT NULL
+  )
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS quiz_questions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     quizId INTEGER NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+    categoryId INTEGER REFERENCES quiz_categories(id) ON DELETE SET NULL,
     position INTEGER NOT NULL,
     prompt TEXT NOT NULL,
     type TEXT NOT NULL CHECK(type IN ('free', 'single', 'multiple')),
@@ -99,6 +109,15 @@ db.exec(`
     correctAnswers TEXT NOT NULL DEFAULT '[]'
   )
 `);
+
+// Add categoryId column to existing quiz_questions installs that predate
+// the categories feature.
+const hasCategoryId = db.prepare("PRAGMA table_info(quiz_questions)")
+  .all()
+  .some(col => col.name === 'categoryId');
+if (!hasCategoryId) {
+  db.exec('ALTER TABLE quiz_questions ADD COLUMN categoryId INTEGER REFERENCES quiz_categories(id) ON DELETE SET NULL');
+}
 
 // Quiz Battle game history.
 // Note: legacy table names use "math_battle_" — kept to avoid migrating
@@ -143,5 +162,7 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_players_game ON math_battle_
 db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_rounds_game ON math_battle_rounds(gameId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_quizzes_owner ON quizzes(ownerUserId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_quiz_questions_quiz ON quiz_questions(quizId, position)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_quiz_categories_quiz ON quiz_categories(quizId, position)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_quiz_questions_category ON quiz_questions(categoryId)`);
 
 export default db;

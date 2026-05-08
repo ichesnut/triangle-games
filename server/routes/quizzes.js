@@ -4,6 +4,7 @@ import db from '../db.js';
 const router = Router();
 
 const MAX_NAME_LEN = 80;
+const MAX_CATEGORY_NAME_LEN = 60;
 const MAX_PROMPT_LEN = 500;
 const MAX_OPTION_LEN = 200;
 const MAX_OPTIONS = 10;
@@ -19,11 +20,21 @@ function loadQuestionRow(row) {
   return {
     id: row.id,
     quizId: row.quizId,
+    categoryId: row.categoryId ?? null,
     position: row.position,
     prompt: row.prompt,
     type: row.type,
     options: JSON.parse(row.options || '[]'),
     correctAnswers: JSON.parse(row.correctAnswers || '[]'),
+  };
+}
+
+function loadCategoryRow(row) {
+  return {
+    id: row.id,
+    quizId: row.quizId,
+    position: row.position,
+    name: row.name,
   };
 }
 
@@ -41,11 +52,28 @@ function loadQuizWithQuestions(quizId) {
     'SELECT id, ownerUserId, name, createdAt FROM quizzes WHERE id = ?'
   ).get(quizId);
   if (!quiz) return null;
-  const questionRows = db.prepare(
-    'SELECT id, quizId, position, prompt, type, options, correctAnswers FROM quiz_questions WHERE quizId = ? ORDER BY position ASC, id ASC'
+
+  const categoryRows = db.prepare(
+    'SELECT id, quizId, position, name FROM quiz_categories WHERE quizId = ? ORDER BY position ASC, id ASC'
   ).all(quizId);
+
+  // Order questions by their category's position (uncategorized last),
+  // then by question position within the category.
+  const questionRows = db.prepare(`
+    SELECT q.id, q.quizId, q.categoryId, q.position, q.prompt, q.type, q.options, q.correctAnswers
+    FROM quiz_questions q
+    LEFT JOIN quiz_categories c ON c.id = q.categoryId
+    WHERE q.quizId = ?
+    ORDER BY
+      CASE WHEN q.categoryId IS NULL THEN 1 ELSE 0 END ASC,
+      c.position ASC,
+      q.position ASC,
+      q.id ASC
+  `).all(quizId);
+
   return {
     ...quiz,
+    categories: categoryRows.map(loadCategoryRow),
     questions: questionRows.map(loadQuestionRow),
   };
 }
@@ -175,6 +203,142 @@ router.delete('/:id', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Resolve and validate a categoryId on a question payload. Returns
+// { error } on bad input, or { categoryId } (which may be null).
+function resolveQuestionCategoryId(quizId, body) {
+  if (body == null || body.categoryId === undefined) {
+    return { categoryId: null };
+  }
+  if (body.categoryId === null) return { categoryId: null };
+  const cid = Number(body.categoryId);
+  if (!Number.isInteger(cid)) return { error: 'categoryId must be an integer or null' };
+  const found = db.prepare(
+    'SELECT id FROM quiz_categories WHERE id = ? AND quizId = ?'
+  ).get(cid, quizId);
+  if (!found) return { error: 'Category not found in this quiz' };
+  return { categoryId: cid };
+}
+
+// ── Categories ─────────────────────────────────────────
+
+// List categories for a quiz
+router.get('/:id/categories', requireAuth, (req, res) => {
+  const quizId = Number(req.params.id);
+  const quiz = getQuiz(quizId, req.session.userId);
+  if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+  if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
+
+  const rows = db.prepare(
+    'SELECT id, quizId, position, name FROM quiz_categories WHERE quizId = ? ORDER BY position ASC, id ASC'
+  ).all(quizId);
+  res.json({ categories: rows.map(loadCategoryRow) });
+});
+
+// Create a category
+router.post('/:id/categories', requireAuth, (req, res) => {
+  const quizId = Number(req.params.id);
+  const quiz = getQuiz(quizId, req.session.userId);
+  if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+  if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
+
+  const name = (req.body?.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Category name is required' });
+  if (name.length > MAX_CATEGORY_NAME_LEN) {
+    return res.status(400).json({ error: `Name too long (max ${MAX_CATEGORY_NAME_LEN})` });
+  }
+
+  const maxPos = db.prepare(
+    'SELECT COALESCE(MAX(position), 0) AS m FROM quiz_categories WHERE quizId = ?'
+  ).get(quizId).m;
+
+  const result = db.prepare(
+    'INSERT INTO quiz_categories (quizId, position, name) VALUES (?, ?, ?)'
+  ).run(quizId, maxPos + 1, name);
+
+  const row = db.prepare(
+    'SELECT id, quizId, position, name FROM quiz_categories WHERE id = ?'
+  ).get(result.lastInsertRowid);
+  res.status(201).json({ category: loadCategoryRow(row) });
+});
+
+// Reorder categories. Body: { order: [categoryId, ...] }. Defined before
+// the /:cid routes so "reorder" is not parsed as a category id.
+router.patch('/:id/categories/reorder', requireAuth, (req, res) => {
+  const quizId = Number(req.params.id);
+  const quiz = getQuiz(quizId, req.session.userId);
+  if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+  if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
+
+  const order = req.body?.order;
+  if (!Array.isArray(order) || order.some(id => !Number.isInteger(id))) {
+    return res.status(400).json({ error: 'order must be an array of category IDs' });
+  }
+
+  const existing = db.prepare(
+    'SELECT id FROM quiz_categories WHERE quizId = ?'
+  ).all(quizId).map(r => r.id);
+
+  if (order.length !== existing.length || !order.every(id => existing.includes(id))) {
+    return res.status(400).json({ error: 'order must include every category exactly once' });
+  }
+
+  const update = db.prepare(
+    'UPDATE quiz_categories SET position = ? WHERE id = ? AND quizId = ?'
+  );
+  const tx = db.transaction((ids) => {
+    ids.forEach((id, i) => update.run(i + 1, id, quizId));
+  });
+  tx(order);
+
+  res.json({ quiz: loadQuizWithQuestions(quizId) });
+});
+
+// Rename a category
+router.patch('/:id/categories/:cid', requireAuth, (req, res) => {
+  const quizId = Number(req.params.id);
+  const cId = Number(req.params.cid);
+  const quiz = getQuiz(quizId, req.session.userId);
+  if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+  if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
+
+  const existing = db.prepare(
+    'SELECT id FROM quiz_categories WHERE id = ? AND quizId = ?'
+  ).get(cId, quizId);
+  if (!existing) return res.status(404).json({ error: 'Category not found' });
+
+  const name = (req.body?.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (name.length > MAX_CATEGORY_NAME_LEN) {
+    return res.status(400).json({ error: `Name too long (max ${MAX_CATEGORY_NAME_LEN})` });
+  }
+  db.prepare('UPDATE quiz_categories SET name = ? WHERE id = ?').run(name, cId);
+
+  const row = db.prepare(
+    'SELECT id, quizId, position, name FROM quiz_categories WHERE id = ?'
+  ).get(cId);
+  res.json({ category: loadCategoryRow(row) });
+});
+
+// Delete a category. Questions in it become uncategorized (FK ON DELETE
+// SET NULL).
+router.delete('/:id/categories/:cid', requireAuth, (req, res) => {
+  const quizId = Number(req.params.id);
+  const cId = Number(req.params.cid);
+  const quiz = getQuiz(quizId, req.session.userId);
+  if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+  if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
+
+  const existing = db.prepare(
+    'SELECT id FROM quiz_categories WHERE id = ? AND quizId = ?'
+  ).get(cId, quizId);
+  if (!existing) return res.status(404).json({ error: 'Category not found' });
+
+  db.prepare('DELETE FROM quiz_categories WHERE id = ?').run(cId);
+  res.json({ ok: true });
+});
+
+// ── Questions ──────────────────────────────────────────
+
 // Add a question to a quiz
 router.post('/:id/questions', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
@@ -185,16 +349,19 @@ router.post('/:id/questions', requireAuth, (req, res) => {
   const err = validateQuestionPayload(req.body);
   if (err) return res.status(400).json({ error: err });
   const data = normalizeQuestionPayload(req.body);
+  const cat = resolveQuestionCategoryId(quizId, req.body);
+  if (cat.error) return res.status(400).json({ error: cat.error });
 
   const maxPos = db.prepare(
     'SELECT COALESCE(MAX(position), 0) AS m FROM quiz_questions WHERE quizId = ?'
   ).get(quizId).m;
 
   const result = db.prepare(`
-    INSERT INTO quiz_questions (quizId, position, prompt, type, options, correctAnswers)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO quiz_questions (quizId, categoryId, position, prompt, type, options, correctAnswers)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
     quizId,
+    cat.categoryId,
     maxPos + 1,
     data.prompt,
     data.type,
@@ -203,7 +370,7 @@ router.post('/:id/questions', requireAuth, (req, res) => {
   );
 
   const row = db.prepare(
-    'SELECT id, quizId, position, prompt, type, options, correctAnswers FROM quiz_questions WHERE id = ?'
+    'SELECT id, quizId, categoryId, position, prompt, type, options, correctAnswers FROM quiz_questions WHERE id = ?'
   ).get(result.lastInsertRowid);
 
   res.status(201).json({ question: loadQuestionRow(row) });
@@ -258,12 +425,15 @@ router.patch('/:id/questions/:qid', requireAuth, (req, res) => {
   const err = validateQuestionPayload(req.body);
   if (err) return res.status(400).json({ error: err });
   const data = normalizeQuestionPayload(req.body);
+  const cat = resolveQuestionCategoryId(quizId, req.body);
+  if (cat.error) return res.status(400).json({ error: cat.error });
 
   db.prepare(`
     UPDATE quiz_questions
-    SET prompt = ?, type = ?, options = ?, correctAnswers = ?
+    SET categoryId = ?, prompt = ?, type = ?, options = ?, correctAnswers = ?
     WHERE id = ?
   `).run(
+    cat.categoryId,
     data.prompt,
     data.type,
     JSON.stringify(data.options),
@@ -272,7 +442,7 @@ router.patch('/:id/questions/:qid', requireAuth, (req, res) => {
   );
 
   const row = db.prepare(
-    'SELECT id, quizId, position, prompt, type, options, correctAnswers FROM quiz_questions WHERE id = ?'
+    'SELECT id, quizId, categoryId, position, prompt, type, options, correctAnswers FROM quiz_questions WHERE id = ?'
   ).get(qId);
   res.json({ question: loadQuestionRow(row) });
 });

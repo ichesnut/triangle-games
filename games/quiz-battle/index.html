@@ -237,6 +237,68 @@
     }
     .icon-btn:active { transform: scale(0.92); }
 
+    /* Category management */
+    .cat-section {
+      width: 100%;
+      max-width: 420px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 1rem;
+    }
+    .cat-section-head {
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .category-list { list-style: none; padding: 0; margin: 0 0 0.5rem; }
+    .category-row {
+      display: flex; align-items: center; gap: 0.35rem;
+      padding: 0.4rem 0.5rem;
+      background: var(--bg-card-2);
+      border-radius: 8px;
+      margin-bottom: 0.35rem;
+      font-size: 0.9rem;
+    }
+    .category-row .cat-name { flex: 1; font-weight: 600; }
+    .category-row input.cat-name-input {
+      flex: 1;
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+    .cat-add-row { display: flex; gap: 0.4rem; align-items: center; }
+    .cat-add-row .input-field { margin-bottom: 0; flex: 1; }
+    .cat-empty { color: var(--text-dim); font-size: 0.85rem; padding: 0.25rem 0 0.5rem; }
+
+    /* Question list group headers */
+    .question-group-head {
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-weight: 700;
+      margin: 0.5rem 0 0.35rem;
+      padding-left: 0.25rem;
+    }
+    .question-category-tag {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      background: var(--bg-card-2);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      margin-left: auto;
+    }
+
     /* Add/Edit question form */
     .q-form {
       width: 100%;
@@ -553,11 +615,24 @@
     <h2 id="quiz-editor-title">Quiz</h2>
     <p class="subtitle" id="quiz-editor-meta"></p>
 
+    <div class="cat-section">
+      <div class="cat-section-head">Categories</div>
+      <ul class="category-list" id="category-list"></ul>
+      <div class="cat-add-row">
+        <input class="input-field" id="new-category-name" placeholder="New category name" maxlength="60">
+        <button class="btn btn-secondary btn-small" id="new-category-btn">+ Add</button>
+      </div>
+      <div class="error-msg" id="category-error"></div>
+    </div>
+
     <ul class="question-list" id="question-list"></ul>
 
     <div class="q-form" id="q-form">
       <label>Question prompt</label>
       <textarea class="textarea-field" id="q-prompt" placeholder="What is 2 + 2?"></textarea>
+
+      <label>Category</label>
+      <select class="select-field" id="q-category"></select>
 
       <label>Answer type</label>
       <select class="select-field" id="q-type">
