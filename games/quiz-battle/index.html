@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Quiz Battle</title>
+  <link rel="stylesheet" href="/shared/reset.css">
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --bg-card: #16213e;
+      --bg-card-2: #0f3460;
+      --accent: #e94560;
+      --text: #eee;
+      --text-dim: #aaa;
+      --border: #2a3050;
+      --green: #2ecc71;
+      --gold: #ffd700;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100dvh;
+      padding: 0;
+      overflow-x: hidden;
+    }
+
+    .screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      max-width: 520px;
+      padding: 1.25rem 1rem 2rem;
+      flex: 1;
+    }
+    .screen.active { display: flex; }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+
+    h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      text-align: center;
+    }
+
+    .subtitle {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      margin-bottom: 1.25rem;
+      text-align: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.7rem 1.25rem;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.1s, opacity 0.1s;
+      width: 100%;
+      max-width: 360px;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; pointer-events: none; }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-danger { background: #6b1f2f; color: #fff; border: 1px solid #8a2937; }
+    .btn-small { padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; max-width: none; }
+    .btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 360px; }
+    .btn-row .btn { flex: 1; }
+
+    .input-field, .textarea-field, .select-field {
+      width: 100%;
+      max-width: 360px;
+      padding: 0.65rem 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 0.95rem;
+      margin-bottom: 0.5rem;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+    .textarea-field { min-height: 4rem; resize: vertical; }
+    .input-field::placeholder, .textarea-field::placeholder { color: #666; }
+    .input-field:focus, .textarea-field:focus, .select-field:focus {
+      outline: none; border-color: var(--accent);
+    }
+
+    .error-msg {
+      color: var(--accent);
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
+      min-height: 1.2em;
+      text-align: center;
+    }
+    .help-msg {
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      margin: 0.25rem 0 0.75rem;
+      text-align: center;
+    }
+
+    /* Auth screen */
+    .auth-tabs {
+      display: flex;
+      margin-bottom: 1rem;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      width: 100%;
+      max-width: 360px;
+    }
+    .auth-tab {
+      flex: 1;
+      padding: 0.55rem 1rem;
+      background: var(--bg-card);
+      color: var(--text-dim);
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .auth-tab.active { background: var(--accent); color: #fff; }
+    .auth-form { display: none; width: 100%; max-width: 360px; flex-direction: column; align-items: center; }
+    .auth-form.active { display: flex; }
+
+    /* Menu */
+    .menu-stack { display: flex; flex-direction: column; gap: 0.5rem; align-items: center; width: 100%; }
+
+    /* Quiz list */
+    .quiz-list {
+      width: 100%;
+      max-width: 420px;
+      list-style: none;
+      padding: 0;
+      margin: 0 0 1rem;
+    }
+    .quiz-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 0.85rem;
+      background: var(--bg-card);
+      border-radius: 10px;
+      margin-bottom: 0.5rem;
+    }
+    .quiz-row .quiz-name {
+      flex: 1;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .quiz-row .quiz-meta { font-size: 0.8rem; color: var(--text-dim); margin-right: 0.5rem; }
+
+    .empty-state { color: var(--text-dim); padding: 1rem; text-align: center; font-size: 0.9rem; }
+
+    /* Quiz editor */
+    .question-list {
+      width: 100%;
+      max-width: 420px;
+      list-style: none;
+      padding: 0;
+      margin: 0 0 1rem;
+    }
+    .question-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 0.6rem;
+    }
+    .question-head {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.4rem;
+    }
+    .question-pos {
+      background: var(--accent);
+      color: #fff;
+      width: 1.4rem; height: 1.4rem;
+      border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 800;
+      flex: 0 0 auto;
+    }
+    .question-type-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: var(--bg-card-2);
+      color: var(--text-dim);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+    }
+    .question-prompt { font-size: 0.95rem; margin-bottom: 0.35rem; }
+    .question-answers { font-size: 0.8rem; color: var(--text-dim); }
+    .question-actions {
+      display: flex; gap: 0.35rem; margin-top: 0.5rem; flex-wrap: wrap;
+    }
+    .icon-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      width: 1.8rem; height: 1.8rem;
+      border-radius: 6px;
+      cursor: pointer; font-size: 0.9rem;
+    }
+    .icon-btn:active { transform: scale(0.92); }
+
+    /* Add/Edit question form */
+    .q-form {
+      width: 100%;
+      max-width: 420px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.85rem;
+      margin-bottom: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .q-form label {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      margin-top: 0.15rem;
+    }
+    .option-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .option-row .input-field { margin-bottom: 0; flex: 1; max-width: none; }
+    .option-row input[type=checkbox], .option-row input[type=radio] { transform: scale(1.2); }
+
+    /* Lobby */
+    .room-code {
+      font-size: 2.6rem;
+      font-weight: 800;
+      letter-spacing: 0.3em;
+      color: var(--accent);
+      margin: 0.5rem 0;
+    }
+
+    .copy-link-btn { font-size: 0.85rem; padding: 0.45rem 1rem; margin-bottom: 1rem; }
+
+    .player-list {
+      width: 100%;
+      max-width: 360px;
+      list-style: none;
+      padding: 0;
+      margin-bottom: 1rem;
+    }
+    .player-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0.85rem;
+      background: var(--bg-card);
+      border-radius: 8px;
+      margin-bottom: 0.35rem;
+      font-size: 0.95rem;
+    }
+    .player-item .host-badge {
+      font-size: 0.7rem;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.1rem 0.45rem;
+      border-radius: 5px;
+    }
+
+    .quiz-picker {
+      width: 100%;
+      max-width: 360px;
+      background: var(--bg-card);
+      border-radius: 10px;
+      padding: 0.6rem 0.75rem;
+      margin: 0.5rem 0 1rem;
+      font-size: 0.9rem;
+    }
+    .quiz-picker .label { color: var(--text-dim); font-size: 0.8rem; margin-bottom: 0.25rem; }
+    .quiz-picker .selected { font-weight: 700; }
+    .quiz-picker .btn { margin-top: 0.5rem; }
+
+    /* Battle screen */
+    #battle-screen { padding-top: 0.75rem; justify-content: flex-start; }
+
+    .round-info {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      margin-bottom: 0.25rem;
+    }
+
+    .scores-bar {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 0.5rem;
+      font-size: 0.78rem;
+    }
+    .score-chip {
+      background: var(--bg-card);
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+    }
+    .score-chip.me { border: 1px solid var(--accent); }
+
+    .challenge-text {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 1rem 0 0.5rem;
+      text-align: center;
+      line-height: 1.3;
+      min-height: 2.5rem;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .answer-area {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      align-items: stretch;
+    }
+
+    .free-input {
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 1.1rem;
+      text-align: center;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .free-input:focus { outline: none; border-color: var(--accent); }
+
+    .choice-btn {
+      padding: 0.8rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 1rem;
+      text-align: left;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.08s, background 0.1s, border-color 0.1s;
+    }
+    .choice-btn:active { transform: scale(0.98); }
+    .choice-btn.selected {
+      background: var(--bg-card-2);
+      border-color: var(--accent);
+    }
+    .choice-btn:disabled { opacity: 0.5; pointer-events: none; }
+
+    .submit-btn {
+      background: var(--green);
+      color: #fff;
+      padding: 0.85rem;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+    }
+    .submit-btn:disabled { opacity: 0.5; pointer-events: none; }
+
+    /* Flash overlay for feedback */
+    .flash-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 100;
+    }
+    .flash-overlay.correct { background: rgba(46, 204, 113, 0.25); opacity: 1; }
+    .flash-overlay.wrong { background: rgba(233, 69, 96, 0.25); opacity: 1; }
+
+    /* Round result */
+    .result-winner {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--gold);
+      margin: 0.75rem 0 0.4rem;
+      text-align: center;
+    }
+    .result-answer {
+      font-size: 1rem;
+      color: var(--text-dim);
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+    .result-time {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      margin-bottom: 1.25rem;
+      text-align: center;
+    }
+    .result-buttons {
+      display: flex;
+      gap: 0.5rem;
+      width: 100%;
+      max-width: 360px;
+    }
+    .result-buttons .btn { flex: 1; }
+
+    /* Scoreboard */
+    .scoreboard-list { width: 100%; max-width: 380px; margin-bottom: 1.25rem; }
+    .scoreboard-row {
+      display: flex;
+      align-items: center;
+      padding: 0.65rem 0.85rem;
+      background: var(--bg-card);
+      border-radius: 12px;
+      margin-bottom: 0.4rem;
+    }
+    .scoreboard-row.first { border: 2px solid var(--gold); }
+    .scoreboard-rank {
+      font-size: 1.2rem;
+      font-weight: 800;
+      width: 1.8rem;
+      color: var(--text-dim);
+    }
+    .scoreboard-row.first .scoreboard-rank { color: var(--gold); }
+    .scoreboard-name { flex: 1; font-weight: 600; }
+    .scoreboard-stats { text-align: right; font-size: 0.82rem; color: var(--text-dim); }
+    .scoreboard-stats .chesnuts { color: var(--gold); font-weight: 700; }
+
+    .back-home {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      text-decoration: none;
+    }
+    .back-link {
+      align-self: flex-start;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      text-decoration: none;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      background: none; border: none; padding: 0;
+    }
+
+    .waiting { color: var(--text-dim); font-size: 0.9rem; margin-top: 0.75rem; text-align: center; }
+    .waiting::after { content: ''; animation: dots 1.2s steps(4) infinite; }
+    @keyframes dots {
+      0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; }
+    }
+
+    .vote-info { font-size: 0.85rem; color: var(--text-dim); margin-top: 0.5rem; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <div class="flash-overlay" id="flash-overlay"></div>
+
+  <!-- Auth Screen -->
+  <div class="screen active" id="auth-screen">
+    <h1>Quiz Battle</h1>
+    <p class="subtitle">Build a quiz, then play head-to-head!</p>
+
+    <div id="loading-msg" class="subtitle">Checking session...</div>
+
+    <div id="auth-forms" style="display:none; width:100%; max-width:360px; flex-direction:column; align-items:center;">
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="register">Register</button>
+      </div>
+
+      <form class="auth-form active" id="login-form">
+        <input class="input-field" name="email" type="email" placeholder="Email" required autocomplete="email">
+        <input class="input-field" name="password" type="password" placeholder="Password" required autocomplete="current-password">
+        <button type="submit" class="btn btn-primary">Login</button>
+        <div class="error-msg" id="login-error"></div>
+      </form>
+
+      <form class="auth-form" id="register-form">
+        <input class="input-field" name="displayName" placeholder="Display Name" required autocomplete="name">
+        <input class="input-field" name="email" type="email" placeholder="Email" required autocomplete="email">
+        <input class="input-field" name="password" type="password" placeholder="Password" required autocomplete="new-password">
+        <button type="submit" class="btn btn-primary">Register</button>
+        <div class="error-msg" id="register-error"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main Menu -->
+  <div class="screen" id="menu-screen">
+    <h1>Quiz Battle</h1>
+    <p class="subtitle" id="welcome-msg">Welcome!</p>
+    <div class="menu-stack">
+      <button class="btn btn-primary" id="create-btn">Create Game</button>
+      <input class="input-field" id="join-code-input" placeholder="Enter room code" maxlength="4" style="text-transform:uppercase">
+      <button class="btn btn-secondary" id="join-btn">Join Game</button>
+      <button class="btn btn-secondary" id="manage-quizzes-btn" style="margin-top:0.75rem">Manage Quizzes</button>
+    </div>
+    <div class="error-msg" id="menu-error"></div>
+    <a href="/" class="back-home" style="margin-top:2rem">Back to Games</a>
+  </div>
+
+  <!-- Quizzes Screen -->
+  <div class="screen" id="quizzes-screen">
+    <button class="back-link" data-target="menu">&larr; Back</button>
+    <h2>Your Quizzes</h2>
+    <ul class="quiz-list" id="quiz-list"></ul>
+    <input class="input-field" id="new-quiz-name" placeholder="New quiz name">
+    <button class="btn btn-primary" id="new-quiz-btn">Create Quiz</button>
+    <div class="error-msg" id="quizzes-error"></div>
+  </div>
+
+  <!-- Quiz Editor Screen -->
+  <div class="screen" id="quiz-editor-screen">
+    <button class="back-link" id="quiz-editor-back">&larr; Back to Quizzes</button>
+    <h2 id="quiz-editor-title">Quiz</h2>
+    <p class="subtitle" id="quiz-editor-meta"></p>
+
+    <ul class="question-list" id="question-list"></ul>
+
+    <div class="q-form" id="q-form">
+      <label>Question prompt</label>
+      <textarea class="textarea-field" id="q-prompt" placeholder="What is 2 + 2?"></textarea>
+
+      <label>Answer type</label>
+      <select class="select-field" id="q-type">
+        <option value="free">Free type</option>
+        <option value="single">Single choice</option>
+        <option value="multiple">Multiple choice</option>
+      </select>
+
+      <div id="q-free-area">
+        <label>Accepted answers (one per line, case-insensitive)</label>
+        <textarea class="textarea-field" id="q-free-answers" placeholder="4&#10;four"></textarea>
+      </div>
+
+      <div id="q-choice-area" style="display:none">
+        <label>Options (mark the correct one)</label>
+        <div id="q-options"></div>
+        <button type="button" class="btn btn-secondary btn-small" id="q-add-option" style="margin-top:0.25rem">+ Add option</button>
+      </div>
+
+      <div class="error-msg" id="q-form-error"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="q-cancel-btn" style="display:none">Cancel</button>
+        <button class="btn btn-primary" id="q-save-btn">Add Question</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lobby -->
+  <div class="screen" id="lobby-screen">
+    <h2>Game Lobby</h2>
+    <p class="subtitle">Share this code with friends:</p>
+    <div class="room-code" id="room-code"></div>
+    <button class="btn btn-secondary copy-link-btn" id="copy-link-btn">Copy Invite Link</button>
+
+    <div class="quiz-picker" id="quiz-picker">
+      <div class="label">Quiz</div>
+      <div class="selected" id="selected-quiz">None selected</div>
+      <button class="btn btn-secondary btn-small" id="pick-quiz-btn" style="display:none">Choose Quiz</button>
+    </div>
+
+    <ul class="player-list" id="player-list"></ul>
+    <button class="btn btn-primary" id="start-btn" disabled>Start Game</button>
+    <p class="subtitle" id="lobby-status">Waiting for players...</p>
+  </div>
+
+  <!-- Quiz Picker (modal-ish) -->
+  <div class="screen" id="quiz-picker-screen">
+    <button class="back-link" id="quiz-picker-back">&larr; Back to Lobby</button>
+    <h2>Pick a Quiz</h2>
+    <ul class="quiz-list" id="picker-quiz-list"></ul>
+    <div class="error-msg" id="picker-error"></div>
+  </div>
+
+  <!-- Battle -->
+  <div class="screen" id="battle-screen">
+    <div class="round-info" id="round-info">Round 1</div>
+    <div class="scores-bar" id="scores-bar"></div>
+    <div class="challenge-text" id="challenge-text"></div>
+    <div class="answer-area" id="answer-area"></div>
+    <p class="waiting" id="battle-waiting" style="display:none">Waiting for others</p>
+  </div>
+
+  <!-- Round Result -->
+  <div class="screen" id="result-screen">
+    <h2>Round Complete!</h2>
+    <div class="result-winner" id="result-winner"></div>
+    <div class="result-answer" id="result-answer"></div>
+    <div class="result-time" id="result-time"></div>
+    <div class="scores-bar" id="result-scores"></div>
+    <div class="result-buttons">
+      <button class="btn btn-primary" id="next-round-btn">Next Question</button>
+      <button class="btn btn-secondary" id="vote-finish-btn">Vote to Finish</button>
+    </div>
+    <p class="vote-info" id="vote-info"></p>
+  </div>
+
+  <!-- Final Scoreboard -->
+  <div class="screen" id="scoreboard-screen">
+    <h2>Game Over!</h2>
+    <div class="scoreboard-list" id="scoreboard-list"></div>
+    <button class="btn btn-primary" id="play-again-btn" style="margin-bottom:0.5rem">Play Again</button>
+    <a href="/" class="back-home">Back to Games</a>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

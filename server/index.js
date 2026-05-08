@@ -7,8 +7,8 @@ import session from 'express-session';
 import connectSqlite3 from 'connect-sqlite3';
 import { mkdirSync } from 'fs';
 import authRouter from './routes/auth.js';
-import challengeRouter from './routes/challenges.js';
 import rewardsRouter from './routes/rewards.js';
+import quizzesRouter from './routes/quizzes.js';
 import { attachWebSocketServer } from './multiplayer/ws.js';
 import './seed.js';
 
@@ -74,8 +74,8 @@ app.get('/api/chesnuts/csrf-token', (req, res) => {
   res.json({ csrfToken: req.session.csrfToken });
 });
 
-app.use('/api/chesnuts/challenges', csrfProtection, challengeRouter);
 app.use('/api/chesnuts/rewards', csrfProtection, rewardsRouter);
+app.use('/api/chesnuts/quizzes', csrfProtection, quizzesRouter);
 app.use('/api/chesnuts', csrfProtection, authRouter);
 
 // Health check

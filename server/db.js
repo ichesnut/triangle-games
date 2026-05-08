@@ -78,7 +78,31 @@ db.exec(`
   )
 `);
 
-// Math Battle game history
+// Quizzes (pre-configured question sets used by Quiz Battle)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS quizzes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ownerUserId INTEGER NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS quiz_questions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    quizId INTEGER NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    prompt TEXT NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('free', 'single', 'multiple')),
+    options TEXT NOT NULL DEFAULT '[]',
+    correctAnswers TEXT NOT NULL DEFAULT '[]'
+  )
+`);
+
+// Quiz Battle game history.
+// Note: legacy table names use "math_battle_" — kept to avoid migrating
+// existing rows; renaming the tables is purely cosmetic.
 db.exec(`
   CREATE TABLE IF NOT EXISTS math_battle_games (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,7 +128,7 @@ db.exec(`
     gameId INTEGER NOT NULL REFERENCES math_battle_games(id),
     roundNumber INTEGER NOT NULL,
     challenge TEXT NOT NULL,
-    correctAnswer INTEGER NOT NULL,
+    correctAnswer TEXT NOT NULL,
     winnerId INTEGER REFERENCES users(id),
     timeTakenMs INTEGER
   )
@@ -117,5 +141,7 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_redemptions_user ON redemptions(userId)`
 db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_players_user ON math_battle_players(userId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_players_game ON math_battle_players(gameId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_rounds_game ON math_battle_rounds(gameId)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_quizzes_owner ON quizzes(ownerUserId)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_quiz_questions_quiz ON quiz_questions(quizId, position)`);
 
 export default db;

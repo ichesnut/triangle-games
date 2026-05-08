@@ -1,4 +1,4 @@
-// WebSocket server for Math Battle multiplayer
+// WebSocket server for Quiz Battle multiplayer
 
 import { WebSocketServer } from 'ws';
 import db from '../db.js';
@@ -7,16 +7,18 @@ import {
   addPlayer,
   removePlayer,
   getRoom,
+  setQuiz,
   startGame,
   submitAnswer,
   resolveRound,
   nextRound,
+  hasMoreQuestions,
   voteFinish,
   finishGame,
   getRoomState,
 } from './rooms.js';
+import { loadQuizWithQuestions } from '../routes/quizzes.js';
 
-// Award chesnuts atomically when game ends
 const awardChesnuts = db.transaction((totalChesnuts) => {
   const stmt = db.prepare('UPDATE users SET chesnutBalance = chesnutBalance + ? WHERE id = ?');
   for (const [userId, amount] of Object.entries(totalChesnuts)) {
@@ -24,7 +26,6 @@ const awardChesnuts = db.transaction((totalChesnuts) => {
   }
 });
 
-// Record game results in DB
 const recordGame = db.transaction((roomCode, gameResult, players) => {
   const insertGame = db.prepare(
     'INSERT INTO math_battle_games (roomCode, totalRounds, finishedAt) VALUES (?, ?, datetime(\'now\'))'
@@ -47,7 +48,7 @@ const recordGame = db.transaction((roomCode, gameResult, players) => {
     'INSERT INTO math_battle_rounds (gameId, roundNumber, challenge, correctAnswer, winnerId, timeTakenMs) VALUES (?, ?, ?, ?, ?, ?)'
   );
   for (const r of gameResult.roundResults) {
-    insertRound.run(gameId, r.round, r.challenge, r.correctAnswer, r.winnerId, r.timeTaken);
+    insertRound.run(gameId, r.round, r.challenge, String(r.correctAnswer), r.winnerId, r.timeTaken);
   }
 
   return gameId;
@@ -72,18 +73,32 @@ function sendError(ws, message) {
   sendTo(ws, { type: 'error', message });
 }
 
+function endGameAndRecord(room) {
+  const gameResult = finishGame(room);
+
+  if (Object.keys(gameResult.totalChesnuts).length > 0) {
+    awardChesnuts(gameResult.totalChesnuts);
+  }
+
+  const players = Array.from(room.players.values());
+  try {
+    recordGame(room.code, gameResult, players);
+  } catch (err) {
+    console.error('Failed to record game:', err);
+  }
+
+  return gameResult;
+}
+
 export function attachWebSocketServer(httpServer, sessionParser) {
   const wss = new WebSocketServer({ noServer: true });
 
-  // Handle upgrade with session auth
   httpServer.on('upgrade', (req, socket, head) => {
-    // Only handle /ws/math-battle path
-    if (req.url !== '/ws/math-battle') {
+    if (req.url !== '/ws/quiz-battle') {
       socket.destroy();
       return;
     }
 
-    // Parse session from cookie
     sessionParser(req, {}, () => {
       if (!req.session?.userId) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
@@ -155,15 +170,39 @@ export function attachWebSocketServer(httpServer, sessionParser) {
           addPlayer(room, userId, user.displayName, ws);
           currentRoom = room.code;
 
-          // Notify existing players
           broadcast(room, {
             type: 'player_joined',
             userId,
             displayName: user.displayName,
           }, userId);
 
-          // Send full state to new player
           sendTo(ws, { type: 'room_state', ...getRoomState(room) });
+          break;
+        }
+
+        case 'select_quiz': {
+          const room = getRoom(currentRoom);
+          if (!room) { sendError(ws, 'Not in a room'); return; }
+          if (room.hostUserId !== userId) { sendError(ws, 'Only host can pick a quiz'); return; }
+          if (room.state !== 'lobby') { sendError(ws, 'Quiz can only be set in the lobby'); return; }
+
+          const quizId = Number(msg.quizId);
+          if (!Number.isInteger(quizId)) {
+            sendError(ws, 'Invalid quizId'); return;
+          }
+          const quiz = loadQuizWithQuestions(quizId);
+          if (!quiz) { sendError(ws, 'Quiz not found'); return; }
+          if (quiz.ownerUserId !== userId) {
+            sendError(ws, 'Only the quiz owner can host it');
+            return;
+          }
+          if (!quiz.questions.length) {
+            sendError(ws, 'Quiz has no questions yet');
+            return;
+          }
+
+          setQuiz(room, quiz);
+          broadcast(room, { type: 'room_state', ...getRoomState(room) }, null);
           break;
         }
 
@@ -173,8 +212,10 @@ export function attachWebSocketServer(httpServer, sessionParser) {
           if (room.hostUserId !== userId) { sendError(ws, 'Only host can start'); return; }
           if (room.players.size < 2) { sendError(ws, 'Need at least 2 players'); return; }
           if (room.state !== 'lobby') { sendError(ws, 'Game already started'); return; }
+          if (!room.quiz) { sendError(ws, 'Pick a quiz first'); return; }
 
-          startGame(room);
+          const ok = startGame(room);
+          if (!ok) { sendError(ws, 'Cannot start: quiz has no questions'); return; }
           const state = getRoomState(room);
           broadcast(room, { type: 'round_start', ...state }, null);
           break;
@@ -186,12 +227,10 @@ export function attachWebSocketServer(httpServer, sessionParser) {
           if (room.state !== 'playing') { sendError(ws, 'No active game'); return; }
 
           const result = submitAnswer(room, userId, msg.answer);
-          if (!result) return; // round resolved or already submitted — ignore silently
+          if (!result) return;
 
-          // Let the player know their answer was received
           sendTo(ws, { type: 'answer_received', correct: result.correct });
 
-          // Resolve immediately on first correct answer, or when all have answered
           if (result.firstCorrect || result.allAnswered) {
             const roundResult = resolveRound(room);
             broadcast(room, { type: 'round_result', ...roundResult }, null);
@@ -203,6 +242,12 @@ export function attachWebSocketServer(httpServer, sessionParser) {
           const room = getRoom(currentRoom);
           if (!room) { sendError(ws, 'Not in a room'); return; }
           if (room.state !== 'playing') { sendError(ws, 'No active game'); return; }
+
+          if (!hasMoreQuestions(room)) {
+            const gameResult = endGameAndRecord(room);
+            broadcast(room, { type: 'game_over', ...gameResult }, null);
+            break;
+          }
 
           nextRound(room);
           const state = getRoomState(room);
@@ -217,25 +262,9 @@ export function attachWebSocketServer(httpServer, sessionParser) {
 
           const shouldFinish = voteFinish(room, userId);
           if (shouldFinish) {
-            const gameResult = finishGame(room);
-
-            // Award chesnuts atomically
-            if (Object.keys(gameResult.totalChesnuts).length > 0) {
-              awardChesnuts(gameResult.totalChesnuts);
-            }
-
-            // Record in database
-            const players = Array.from(room.players.values());
-            try {
-              recordGame(room.code, gameResult, players);
-            } catch (err) {
-              console.error('Failed to record game:', err);
-            }
-
-            const gameOverMsg = { type: 'game_over', ...gameResult };
-            broadcast(room, gameOverMsg, null);
+            const gameResult = endGameAndRecord(room);
+            broadcast(room, { type: 'game_over', ...gameResult }, null);
           } else {
-            // Notify everyone about the vote
             broadcast(room, {
               type: 'vote_update',
               voterId: userId,
