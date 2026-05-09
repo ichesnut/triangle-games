@@ -52,9 +52,20 @@ db.exec(`
     gamesPlayed INTEGER NOT NULL DEFAULT 0,
     roundsWon INTEGER NOT NULL DEFAULT 0,
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-    lastSeenAt TEXT NOT NULL DEFAULT (datetime('now'))
+    lastSeenAt TEXT NOT NULL DEFAULT (datetime('now')),
+    mergedIntoUserId INTEGER REFERENCES users(id),
+    mergedAt TEXT
   )
 `);
+
+// Migration: add merge-tracking columns to existing guests installs.
+const guestCols = db.prepare('PRAGMA table_info(guests)').all().map(c => c.name);
+if (!guestCols.includes('mergedIntoUserId')) {
+  db.exec('ALTER TABLE guests ADD COLUMN mergedIntoUserId INTEGER REFERENCES users(id)');
+}
+if (!guestCols.includes('mergedAt')) {
+  db.exec('ALTER TABLE guests ADD COLUMN mergedAt TEXT');
+}
 
 // Challenge data table
 db.exec(`
