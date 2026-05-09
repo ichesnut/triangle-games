@@ -177,20 +177,16 @@ function resolveRound(room) {
   const winner = correctAnswers.length > 0 ? correctAnswers[0] : null;
   const chesnutAwards = new Map();
 
-  for (const { userId } of correctAnswers) {
-    if (winner && userId === winner.userId) {
-      chesnutAwards.set(userId, 3);
-      room.scores.set(userId, (room.scores.get(userId) || 0) + 1);
-      const streak = (room.streaks.get(userId) || 0) + 1;
-      room.streaks.set(userId, streak);
-      const max = room.maxStreaks.get(userId) || 0;
-      if (streak > max) room.maxStreaks.set(userId, streak);
-      if (streak >= 3) {
-        chesnutAwards.set(userId, chesnutAwards.get(userId) + 5);
-      }
-    } else {
-      chesnutAwards.set(userId, 1);
-      room.streaks.set(userId, 0);
+  if (winner) {
+    const userId = winner.userId;
+    chesnutAwards.set(userId, 3);
+    room.scores.set(userId, (room.scores.get(userId) || 0) + 1);
+    const streak = (room.streaks.get(userId) || 0) + 1;
+    room.streaks.set(userId, streak);
+    const max = room.maxStreaks.get(userId) || 0;
+    if (streak > max) room.maxStreaks.set(userId, streak);
+    if (streak >= 3) {
+      chesnutAwards.set(userId, chesnutAwards.get(userId) + 5);
     }
   }
 
