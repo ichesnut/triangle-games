@@ -297,6 +297,16 @@ export function attachWebSocketServer(httpServer, sessionParser) {
           const result = submitAnswer(room, participantId, msg.answer);
           if (!result) return;
 
+          if (!result.accepted) {
+            sendTo(ws, {
+              type: 'answer_received',
+              correct: result.correct,
+              late: result.reason === 'round_already_resolved',
+              duplicate: result.reason === 'already_answered',
+            });
+            return;
+          }
+
           sendTo(ws, { type: 'answer_received', correct: result.correct });
 
           if (result.firstCorrect || result.allAnswered) {

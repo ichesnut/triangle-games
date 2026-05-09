@@ -126,8 +126,21 @@ function hasMoreQuestions(room) {
 
 function submitAnswer(room, userId, answer) {
   if (room.state !== 'playing' || !room.currentChallenge) return null;
-  if (room.roundResolved) return null;
-  if (room.roundAnswers.has(userId)) return null;
+
+  if (room.roundResolved) {
+    return {
+      accepted: false,
+      reason: 'round_already_resolved',
+      correct: isAnswerCorrect(room.currentChallenge, answer),
+    };
+  }
+  if (room.roundAnswers.has(userId)) {
+    return {
+      accepted: false,
+      reason: 'already_answered',
+      correct: room.roundAnswers.get(userId).correct,
+    };
+  }
 
   const correct = isAnswerCorrect(room.currentChallenge, answer);
 
@@ -143,6 +156,7 @@ function submitAnswer(room, userId, answer) {
   });
 
   return {
+    accepted: true,
     correct,
     firstCorrect,
     allAnswered: room.roundAnswers.size === room.players.size,
