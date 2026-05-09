@@ -9,6 +9,8 @@ const els = {
   registerForm: document.getElementById('register-form'),
   registerMsg: document.getElementById('register-msg'),
   usersMsg: document.getElementById('users-msg'),
+  quizList: document.getElementById('quiz-list'),
+  quizzesMsg: document.getElementById('quizzes-msg'),
 };
 
 let csrfToken = null;
@@ -111,6 +113,41 @@ async function loadUsers() {
   }
 }
 
+function renderQuizzes(quizzes) {
+  if (!quizzes.length) {
+    els.quizList.innerHTML = '<li class="empty">No quizzes yet.</li>';
+    return;
+  }
+
+  els.quizList.innerHTML = quizzes.map(q => {
+    const owner = q.ownerDisplayName
+      ? `${escapeHtml(q.ownerDisplayName)} <span class="user-email">&lt;${escapeHtml(q.ownerEmail || '')}&gt;</span>`
+      : '<span class="user-email">(owner missing)</span>';
+    return `
+      <li class="user-row" data-id="${q.id}">
+        <div class="user-head">
+          <span class="user-name">${escapeHtml(q.name)}</span>
+        </div>
+        <div class="user-meta">
+          ${q.questionCount} question${q.questionCount === 1 ? '' : 's'} ·
+          owned by ${owner} ·
+          Created ${fmtDate(q.createdAt)}
+        </div>
+      </li>
+    `;
+  }).join('');
+}
+
+async function loadQuizzes() {
+  setMsg(els.quizzesMsg, '');
+  try {
+    const { quizzes } = await fetchJson(`${API}/admin/quizzes`);
+    renderQuizzes(quizzes);
+  } catch (err) {
+    setMsg(els.quizzesMsg, err.message, 'error');
+  }
+}
+
 async function init() {
   try {
     const csrfRes = await fetchJson(`${API}/csrf-token`);
@@ -150,7 +187,7 @@ async function init() {
   els.loading.style.display = 'none';
   els.content.style.display = 'block';
 
-  await loadUsers();
+  await Promise.all([loadUsers(), loadQuizzes()]);
 }
 
 els.registerForm.addEventListener('submit', async (e) => {

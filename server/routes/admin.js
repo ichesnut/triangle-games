@@ -123,6 +123,21 @@ router.post('/users/:id/enable', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /quizzes — list all quizzes across all owners
+router.get('/quizzes', requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT q.id, q.name, q.createdAt,
+           q.ownerUserId,
+           u.email AS ownerEmail,
+           u.displayName AS ownerDisplayName,
+           (SELECT COUNT(*) FROM quiz_questions WHERE quizId = q.id) AS questionCount
+    FROM quizzes q
+    LEFT JOIN users u ON u.id = q.ownerUserId
+    ORDER BY q.createdAt DESC, q.id DESC
+  `).all();
+  res.json({ quizzes: rows });
+});
+
 // POST /users/:id/admin — set admin flag
 router.post('/users/:id/admin', requireAdmin, (req, res) => {
   const userId = parseInt(req.params.id, 10);
