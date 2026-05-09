@@ -1,0 +1,85 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test + Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Coverage runs in report-only mode while we ramp test writing toward
+      # the 85% target (TRI-62). Switch to `npm run coverage:check` once we
+      # cross the threshold to enforce it as a merge gate.
+      - name: Run tests with coverage
+        run: npm run coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+
+      - name: Post coverage summary on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'coverage/coverage-summary.json';
+            if (!fs.existsSync(path)) {
+              core.warning('coverage-summary.json missing — skipping PR comment');
+              return;
+            }
+            const summary = JSON.parse(fs.readFileSync(path, 'utf8')).total;
+            const pct = (m) => `${m.pct.toFixed(2)}% (${m.covered}/${m.total})`;
+            const body = [
+              '## Coverage',
+              '',
+              '| Metric | Coverage |',
+              '| --- | --- |',
+              `| Lines | ${pct(summary.lines)} |`,
+              `| Statements | ${pct(summary.statements)} |`,
+              `| Functions | ${pct(summary.functions)} |`,
+              `| Branches | ${pct(summary.branches)} |`,
+              '',
+              '<sub>Threshold: 85% lines/functions/statements, 75% branches.</sub>',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' && c.body.startsWith('## Coverage')
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

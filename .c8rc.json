@@ -1,0 +1,23 @@
+{
+  "all": true,
+  "include": [
+    "server/**/*.js",
+    "shared/**/*.js"
+  ],
+  "exclude": [
+    "server/index.js",
+    "server/seed.js",
+    "shared/canvas.js",
+    "shared/gameloop.js",
+    "shared/touch.js",
+    "tests/**",
+    "dist/**",
+    "node_modules/**",
+    "**/*.test.js"
+  ],
+  "reports-dir": "coverage",
+  "lines": 85,
+  "functions": 85,
+  "branches": 75,
+  "statements": 85
+}
