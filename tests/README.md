@@ -29,8 +29,8 @@ Use the `.test.js` suffix so the runner picks them up.
 Configured in `.c8rc.json`. The targets are `server/**/*.js` and `shared/**/*.js`.
 
 Excluded:
-- `server/index.js`, `server/seed.js` — entry points / side-effect modules.
-- `shared/canvas.js`, `shared/gameloop.js`, `shared/touch.js` — DOM/browser-only modules. Move to a jsdom-based test job if/when needed.
+- `server/index.js`, `server/seed.js`, `server/multiplayer/ws.js` — entry points / WebSocket integration glue. Move to an integration-test job if/when needed.
+- `shared/canvas.js`, `shared/gameloop.js`, `shared/touch.js`, `shared/index.js` — DOM/browser-only modules and their barrel re-export. Move to a jsdom-based test job if/when needed.
 
 Thresholds: 85% lines / functions / statements, 75% branches.
 

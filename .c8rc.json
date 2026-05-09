@@ -7,8 +7,10 @@
   "exclude": [
     "server/index.js",
     "server/seed.js",
+    "server/multiplayer/ws.js",
     "shared/canvas.js",
     "shared/gameloop.js",
+    "shared/index.js",
     "shared/touch.js",
     "tests/**",
     "dist/**",

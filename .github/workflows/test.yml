@@ -20,11 +20,10 @@ jobs:
 
       - run: npm ci
 
-      # Coverage runs in report-only mode while we ramp test writing toward
-      # the 85% target (TRI-62). Switch to `npm run coverage:check` once we
-      # cross the threshold to enforce it as a merge gate.
+      # Enforces the 85% lines/functions/statements / 75% branches threshold
+      # configured in .c8rc.json (TRI-64).
       - name: Run tests with coverage
-        run: npm run coverage
+        run: npm run coverage:check
 
       - name: Upload coverage report
         if: always()
