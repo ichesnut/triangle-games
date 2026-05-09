@@ -80,6 +80,11 @@ function getRoom(code) {
   return rooms.get(code?.toUpperCase()) || null;
 }
 
+function deleteRoom(code) {
+  if (!code) return false;
+  return rooms.delete(code.toUpperCase());
+}
+
 function setQuiz(room, quiz) {
   room.quiz = quiz; // { id, name, questions: [...] }
 }
@@ -286,6 +291,7 @@ export {
   addPlayer,
   removePlayer,
   getRoom,
+  deleteRoom,
   setQuiz,
   startGame,
   startRound,

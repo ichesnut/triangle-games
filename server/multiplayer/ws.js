@@ -7,6 +7,7 @@ import {
   addPlayer,
   removePlayer,
   getRoom,
+  deleteRoom,
   setQuiz,
   startGame,
   submitAnswer,
@@ -116,14 +117,13 @@ function sendError(ws, message) {
   sendTo(ws, { type: 'error', message });
 }
 
-function endGameAndRecord(room) {
+function endGameAndRecord(room, players = Array.from(room.players.values())) {
   const gameResult = finishGame(room);
 
   if (Object.keys(gameResult.totalChesnuts).length > 0) {
     awardChesnuts(gameResult.totalChesnuts);
   }
 
-  const players = Array.from(room.players.values());
   try {
     persistStreaks(gameResult, players);
   } catch (err) {
@@ -349,20 +349,41 @@ export function attachWebSocketServer(httpServer, sessionParser) {
     });
 
     ws.on('close', () => {
-      if (currentRoom) {
-        const room = getRoom(currentRoom);
-        if (room) {
-          const remaining = removePlayer(room, participantId);
-          if (remaining) {
-            broadcast(remaining, {
-              type: 'player_left',
-              userId: participantId,
-              displayName,
-              ...getRoomState(remaining),
-            });
-          }
-        }
+      if (!currentRoom) return;
+      const room = getRoom(currentRoom);
+      if (!room) return;
+
+      const wasPlaying = room.state === 'playing';
+      // Snapshot players BEFORE the leaver is removed so the abort path can
+      // still credit their streaks/chesnuts for rounds they helped resolve.
+      const playersBeforeLeave = Array.from(room.players.values());
+
+      const remaining = removePlayer(room, participantId);
+      if (!remaining) return;
+
+      // Mid-game disconnect that drops the room below the 2-player minimum:
+      // end the game, broadcast a final scoreboard, and tear the room down so
+      // it does not sit in `playing` indefinitely (TRI-48 / TRI-49).
+      if (wasPlaying && remaining.players.size < 2) {
+        const gameResult = endGameAndRecord(remaining, playersBeforeLeave);
+        broadcast(remaining, {
+          type: 'game_over',
+          aborted: true,
+          reason: 'opponent_left',
+          leftUserId: participantId,
+          leftDisplayName: displayName,
+          ...gameResult,
+        });
+        deleteRoom(remaining.code);
+        return;
       }
+
+      broadcast(remaining, {
+        type: 'player_left',
+        userId: participantId,
+        displayName,
+        ...getRoomState(remaining),
+      });
     });
   });
 

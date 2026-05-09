@@ -883,6 +883,18 @@ function handleVoteUpdate(msg) {
 }
 
 function handleGameOver(msg) {
+  const title = document.getElementById('scoreboard-title');
+  const banner = document.getElementById('scoreboard-banner');
+  if (msg.aborted) {
+    title.textContent = 'Game Ended';
+    const who = msg.leftDisplayName ? escapeHtml(msg.leftDisplayName) : 'Your opponent';
+    banner.textContent = `${who} left the game. Final scores below.`;
+    banner.hidden = false;
+  } else {
+    title.textContent = 'Game Over!';
+    banner.textContent = '';
+    banner.hidden = true;
+  }
   renderScoreboard(msg);
   showScreen('scoreboard');
 }

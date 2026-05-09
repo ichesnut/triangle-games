@@ -505,6 +505,18 @@
     .result-buttons .btn { flex: 1; }
 
     /* Scoreboard */
+    .scoreboard-banner {
+      width: 100%;
+      max-width: 380px;
+      padding: 0.65rem 0.85rem;
+      background: var(--bg-card);
+      border: 1px solid var(--text-dim);
+      border-radius: 12px;
+      color: var(--text-dim);
+      text-align: center;
+      font-size: 0.9rem;
+      margin-bottom: 0.85rem;
+    }
     .scoreboard-list { width: 100%; max-width: 380px; margin-bottom: 1.25rem; }
     .scoreboard-row {
       display: flex;
@@ -721,7 +733,8 @@
 
   <!-- Final Scoreboard -->
   <div class="screen" id="scoreboard-screen">
-    <h2>Game Over!</h2>
+    <h2 id="scoreboard-title">Game Over!</h2>
+    <div id="scoreboard-banner" class="scoreboard-banner" hidden></div>
     <div class="scoreboard-list" id="scoreboard-list"></div>
     <button class="btn btn-primary" id="play-again-btn" style="margin-bottom:0.5rem">Play Again</button>
     <a href="/" class="back-home">Back to Games</a>
