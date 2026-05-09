@@ -36,6 +36,7 @@ function createRoom(hostUserId, hostDisplayName) {
     roundAnswers: new Map(),
     scores: new Map(),
     streaks: new Map(),
+    maxStreaks: new Map(),
     roundResults: [],
     votesToFinish: new Set(),
     createdAt: Date.now(),
@@ -49,6 +50,7 @@ function addPlayer(room, userId, displayName, ws) {
   room.players.set(userId, { userId, displayName, ws });
   room.scores.set(userId, 0);
   room.streaks.set(userId, 0);
+  room.maxStreaks.set(userId, 0);
   room.lastActivity = Date.now();
 }
 
@@ -94,6 +96,7 @@ function startGame(room) {
   for (const userId of room.players.keys()) {
     room.scores.set(userId, 0);
     room.streaks.set(userId, 0);
+    room.maxStreaks.set(userId, 0);
   }
   startRound(room);
   return true;
@@ -161,6 +164,8 @@ function resolveRound(room) {
       room.scores.set(userId, (room.scores.get(userId) || 0) + 1);
       const streak = (room.streaks.get(userId) || 0) + 1;
       room.streaks.set(userId, streak);
+      const max = room.maxStreaks.get(userId) || 0;
+      if (streak > max) room.maxStreaks.set(userId, streak);
       if (streak >= 3) {
         chesnutAwards.set(userId, chesnutAwards.get(userId) + 5);
       }
@@ -224,6 +229,8 @@ function finishGame(room) {
   return {
     scores: Object.fromEntries(room.scores),
     totalChesnuts: Object.fromEntries(totalChesnuts),
+    finalStreaks: Object.fromEntries(room.streaks),
+    bestStreaksInGame: Object.fromEntries(room.maxStreaks),
     roundResults: room.roundResults,
     totalRounds: room.roundResults.length,
   };

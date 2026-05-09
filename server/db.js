@@ -39,6 +39,23 @@ if (!userCols.includes('disabledAt')) {
   db.exec('ALTER TABLE users ADD COLUMN disabledAt TEXT');
 }
 
+// Guests: unauthenticated players identified by a browser-generated token.
+// Duplicate displayNames are intentionally allowed; the guestToken is the
+// stable identity and lives in the player's localStorage.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS guests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guestToken TEXT UNIQUE NOT NULL,
+    displayName TEXT NOT NULL,
+    currentStreak INTEGER NOT NULL DEFAULT 0,
+    bestStreak INTEGER NOT NULL DEFAULT 0,
+    gamesPlayed INTEGER NOT NULL DEFAULT 0,
+    roundsWon INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    lastSeenAt TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 // Challenge data table
 db.exec(`
   CREATE TABLE IF NOT EXISTS challenges (
@@ -175,5 +192,6 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_quizzes_owner ON quizzes(ownerUserId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_quiz_questions_quiz ON quiz_questions(quizId, position)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_quiz_categories_quiz ON quiz_categories(quizId, position)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_quiz_questions_category ON quiz_questions(categoryId)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_guests_token ON guests(guestToken)`);
 
 export default db;

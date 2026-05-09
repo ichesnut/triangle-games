@@ -1,6 +1,8 @@
 // Quiz Battle — Pre-configured quiz multiplayer client.
 
 const API = '/api/chesnuts';
+const GUEST_TOKEN_KEY = 'triangle-games:guestToken';
+const GUEST_NAME_KEY = 'triangle-games:guestName';
 
 // ── State ──────────────────────────────────────────────
 let csrfToken = null;
@@ -70,6 +72,19 @@ async function api(path, opts = {}) {
   return data;
 }
 
+// ── Guest token (browser-stable identity) ─────────────
+function getOrCreateGuestToken() {
+  let token = null;
+  try { token = localStorage.getItem(GUEST_TOKEN_KEY); } catch (_) {}
+  if (!token) {
+    token = (crypto && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : 'g_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 14);
+    try { localStorage.setItem(GUEST_TOKEN_KEY, token); } catch (_) {}
+  }
+  return token;
+}
+
 // ── Auth ───────────────────────────────────────────────
 async function checkAuth() {
   const loadingMsg = document.getElementById('loading-msg');
@@ -82,13 +97,61 @@ async function checkAuth() {
       onAuthenticated();
       return;
     }
+    // No active session — but if we previously played as a guest on this
+    // browser, transparently re-establish the guest session so streaks etc.
+    // continue to be tracked.
+    let storedName = null;
+    try { storedName = localStorage.getItem(GUEST_NAME_KEY); } catch (_) {}
+    if (storedName) {
+      try {
+        const guestData = await api('/guest', {
+          method: 'POST',
+          body: JSON.stringify({
+            guestToken: getOrCreateGuestToken(),
+            displayName: storedName,
+          }),
+        });
+        currentUser = guestData.user;
+        onAuthenticated();
+        return;
+      } catch (_) { /* fall through to auth screen */ }
+    }
   } catch (_) { /* not logged in */ }
   loadingMsg.style.display = 'none';
   authForms.style.display = 'flex';
+
+  // Pre-fill the guest name field with the last used name, if any.
+  try {
+    const last = localStorage.getItem(GUEST_NAME_KEY);
+    if (last) {
+      document.querySelector('#guest-form input[name="displayName"]').value = last;
+    }
+  } catch (_) {}
+}
+
+function refreshMenuForCurrentUser() {
+  const welcome = document.getElementById('welcome-msg');
+  const streak = document.getElementById('streak-msg');
+  const nameSuffix = currentUser.isGuest ? ' (guest)' : '';
+  welcome.textContent = `Welcome, ${currentUser.displayName}${nameSuffix}!`;
+
+  const cur = currentUser.currentStreak || 0;
+  const best = currentUser.bestStreak || 0;
+  if (cur > 0 || best > 0) {
+    streak.textContent = `Current streak: ${cur} · Best: ${best}`;
+    streak.style.display = '';
+  } else {
+    streak.style.display = 'none';
+  }
+
+  // Guests can't host or manage quizzes (no account / no quiz ownership).
+  const isGuest = !!currentUser.isGuest;
+  document.getElementById('create-btn').style.display = isGuest ? 'none' : '';
+  document.getElementById('manage-quizzes-btn').style.display = isGuest ? 'none' : '';
 }
 
 function onAuthenticated() {
-  document.getElementById('welcome-msg').textContent = `Welcome, ${currentUser.displayName}!`;
+  refreshMenuForCurrentUser();
   showScreen('menu');
 
   const params = new URLSearchParams(window.location.search);
@@ -144,6 +207,37 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
   } catch (err) {
     errEl.textContent = err.message;
   }
+});
+
+document.getElementById('guest-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById('guest-error');
+  errEl.textContent = '';
+  const fd = new FormData(e.target);
+  const displayName = (fd.get('displayName') || '').toString().trim();
+  if (!displayName) { errEl.textContent = 'Please enter a name'; return; }
+  try {
+    const data = await api('/guest', {
+      method: 'POST',
+      body: JSON.stringify({
+        guestToken: getOrCreateGuestToken(),
+        displayName,
+      }),
+    });
+    try { localStorage.setItem(GUEST_NAME_KEY, displayName); } catch (_) {}
+    currentUser = data.user;
+    onAuthenticated();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+});
+
+document.getElementById('switch-user-link').addEventListener('click', async (e) => {
+  e.preventDefault();
+  try { await api('/logout', { method: 'POST' }); } catch (_) {}
+  try { localStorage.removeItem(GUEST_NAME_KEY); } catch (_) {}
+  // Reload so we re-init CSRF + state cleanly.
+  location.href = location.pathname;
 });
 
 // ── Back-link buttons ──────────────────────────────────
@@ -1092,11 +1186,19 @@ document.getElementById('vote-finish-btn').addEventListener('click', () => {
   }
 });
 
-document.getElementById('play-again-btn').addEventListener('click', () => {
+document.getElementById('play-again-btn').addEventListener('click', async () => {
   if (ws) ws.close();
   ws = null;
   roomCode = null;
   roomState = null;
+  // Refresh streak display from the latest persisted values.
+  try {
+    const data = await api('/me');
+    if (data.user) {
+      currentUser = data.user;
+      refreshMenuForCurrentUser();
+    }
+  } catch (_) {}
   showScreen('menu');
 });
 

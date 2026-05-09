@@ -564,11 +564,19 @@
 
     <div id="auth-forms" style="display:none; width:100%; max-width:360px; flex-direction:column; align-items:center;">
       <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab active" data-tab="guest">Play as Guest</button>
+        <button class="auth-tab" data-tab="login">Login</button>
         <button class="auth-tab" data-tab="register">Register</button>
       </div>
 
-      <form class="auth-form active" id="login-form">
+      <form class="auth-form active" id="guest-form">
+        <input class="input-field" name="displayName" placeholder="Your name" required autocomplete="off" maxlength="40">
+        <button type="submit" class="btn btn-primary">Continue</button>
+        <div class="help-msg">No account needed. We'll remember you on this device to track your streak.</div>
+        <div class="error-msg" id="guest-error"></div>
+      </form>
+
+      <form class="auth-form" id="login-form">
         <input class="input-field" name="email" type="email" placeholder="Email" required autocomplete="email">
         <input class="input-field" name="password" type="password" placeholder="Password" required autocomplete="current-password">
         <button type="submit" class="btn btn-primary">Login</button>
@@ -589,6 +597,7 @@
   <div class="screen" id="menu-screen">
     <h1>Quiz Battle</h1>
     <p class="subtitle" id="welcome-msg">Welcome!</p>
+    <p class="subtitle" id="streak-msg" style="display:none; margin-top:-0.75rem;"></p>
     <div class="menu-stack">
       <button class="btn btn-primary" id="create-btn">Create Game</button>
       <input class="input-field" id="join-code-input" placeholder="Enter room code" maxlength="4" style="text-transform:uppercase">
@@ -596,7 +605,8 @@
       <button class="btn btn-secondary" id="manage-quizzes-btn" style="margin-top:0.75rem">Manage Quizzes</button>
     </div>
     <div class="error-msg" id="menu-error"></div>
-    <a href="/" class="back-home" style="margin-top:2rem">Back to Games</a>
+    <a href="#" class="back-home" id="switch-user-link" style="margin-top:1.25rem">Switch user</a>
+    <a href="/" class="back-home" style="margin-top:0.5rem">Back to Games</a>
   </div>
 
   <!-- Quizzes Screen -->

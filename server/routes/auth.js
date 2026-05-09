@@ -5,28 +5,55 @@ import db from '../db.js';
 const router = Router();
 const SALT_ROUNDS = 12;
 
-// Get current user info
+// Shape a guest row for the client. Guest IDs are returned as a negative
+// number so callers can use a single numeric `id` to identify any
+// participant — positive = registered user, negative = guest.
+function shapeGuest(guest) {
+  return {
+    id: -guest.id,
+    displayName: guest.displayName,
+    chesnutBalance: 0,
+    currentStreak: guest.currentStreak,
+    bestStreak: guest.bestStreak,
+    isAdmin: false,
+    isGuest: true,
+    createdAt: guest.createdAt,
+  };
+}
+
+// Get current user info — supports both registered users and guests
 router.get('/me', (req, res) => {
-  if (!req.session.userId) {
-    return res.json({ user: null });
-  }
+  if (req.session.userId) {
+    const user = db.prepare(
+      'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, isAdmin, disabledAt, createdAt FROM users WHERE id = ?'
+    ).get(req.session.userId);
 
-  const user = db.prepare(
-    'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, isAdmin, disabledAt, createdAt FROM users WHERE id = ?'
-  ).get(req.session.userId);
-
-  if (!user || user.disabledAt) {
+    if (user && !user.disabledAt) {
+      return res.json({
+        user: {
+          ...user,
+          isAdmin: !!user.isAdmin,
+          isGuest: false,
+          disabledAt: undefined,
+        },
+      });
+    }
     req.session.destroy(() => {});
     return res.json({ user: null });
   }
 
-  res.json({
-    user: {
-      ...user,
-      isAdmin: !!user.isAdmin,
-      disabledAt: undefined,
-    },
-  });
+  if (req.session.guestId) {
+    const guest = db.prepare(
+      'SELECT id, displayName, currentStreak, bestStreak, createdAt FROM guests WHERE id = ?'
+    ).get(req.session.guestId);
+    if (guest) {
+      db.prepare("UPDATE guests SET lastSeenAt = datetime('now') WHERE id = ?").run(guest.id);
+      return res.json({ user: shapeGuest(guest) });
+    }
+    delete req.session.guestId;
+  }
+
+  res.json({ user: null });
 });
 
 // Register
@@ -60,12 +87,13 @@ router.post('/register', (req, res) => {
   ).run(email, passwordHash, displayName, shouldBeAdmin ? 1 : 0);
 
   req.session.userId = result.lastInsertRowid;
+  delete req.session.guestId;
 
   const user = db.prepare(
     'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, isAdmin, createdAt FROM users WHERE id = ?'
   ).get(result.lastInsertRowid);
 
-  res.status(201).json({ user: { ...user, isAdmin: !!user.isAdmin } });
+  res.status(201).json({ user: { ...user, isAdmin: !!user.isAdmin, isGuest: false } });
 });
 
 // Login
@@ -86,6 +114,7 @@ router.post('/login', (req, res) => {
   }
 
   req.session.userId = user.id;
+  delete req.session.guestId;
 
   res.json({
     user: {
@@ -96,9 +125,51 @@ router.post('/login', (req, res) => {
       currentStreak: user.currentStreak,
       bestStreak: user.bestStreak,
       isAdmin: !!user.isAdmin,
+      isGuest: false,
       createdAt: user.createdAt,
     },
   });
+});
+
+// Guest sign-in: identified by a browser-generated token in localStorage.
+// Returning visitors with the same token keep their streaks across sessions.
+router.post('/guest', (req, res) => {
+  const { guestToken, displayName } = req.body;
+
+  if (typeof guestToken !== 'string' || !/^[A-Za-z0-9_-]{8,128}$/.test(guestToken)) {
+    return res.status(400).json({ error: 'Invalid guest token' });
+  }
+  const cleanName = (typeof displayName === 'string' ? displayName : '').trim();
+  if (cleanName.length < 1 || cleanName.length > 40) {
+    return res.status(400).json({ error: 'Display name must be 1-40 characters' });
+  }
+
+  let guest = db.prepare(
+    'SELECT id, displayName, currentStreak, bestStreak, createdAt FROM guests WHERE guestToken = ?'
+  ).get(guestToken);
+
+  if (guest) {
+    if (guest.displayName !== cleanName) {
+      db.prepare(
+        "UPDATE guests SET displayName = ?, lastSeenAt = datetime('now') WHERE id = ?"
+      ).run(cleanName, guest.id);
+      guest.displayName = cleanName;
+    } else {
+      db.prepare("UPDATE guests SET lastSeenAt = datetime('now') WHERE id = ?").run(guest.id);
+    }
+  } else {
+    const result = db.prepare(
+      'INSERT INTO guests (guestToken, displayName) VALUES (?, ?)'
+    ).run(guestToken, cleanName);
+    guest = db.prepare(
+      'SELECT id, displayName, currentStreak, bestStreak, createdAt FROM guests WHERE id = ?'
+    ).get(result.lastInsertRowid);
+  }
+
+  delete req.session.userId;
+  req.session.guestId = guest.id;
+
+  res.json({ user: shapeGuest(guest) });
 });
 
 // Logout
