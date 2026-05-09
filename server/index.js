@@ -9,6 +9,7 @@ import { mkdirSync } from 'fs';
 import authRouter from './routes/auth.js';
 import rewardsRouter from './routes/rewards.js';
 import quizzesRouter from './routes/quizzes.js';
+import adminRouter from './routes/admin.js';
 import { attachWebSocketServer } from './multiplayer/ws.js';
 import './seed.js';
 
@@ -76,6 +77,7 @@ app.get('/api/chesnuts/csrf-token', (req, res) => {
 
 app.use('/api/chesnuts/rewards', csrfProtection, rewardsRouter);
 app.use('/api/chesnuts/quizzes', csrfProtection, quizzesRouter);
+app.use('/api/chesnuts/admin', csrfProtection, adminRouter);
 app.use('/api/chesnuts', csrfProtection, authRouter);
 
 // Health check

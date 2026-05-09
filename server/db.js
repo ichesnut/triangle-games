@@ -24,9 +24,20 @@ db.exec(`
     chesnutBalance INTEGER NOT NULL DEFAULT 0,
     currentStreak INTEGER NOT NULL DEFAULT 0,
     bestStreak INTEGER NOT NULL DEFAULT 0,
+    isAdmin INTEGER NOT NULL DEFAULT 0,
+    disabledAt TEXT,
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )
 `);
+
+// Migration: add isAdmin and disabledAt to existing installs
+const userCols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+if (!userCols.includes('isAdmin')) {
+  db.exec('ALTER TABLE users ADD COLUMN isAdmin INTEGER NOT NULL DEFAULT 0');
+}
+if (!userCols.includes('disabledAt')) {
+  db.exec('ALTER TABLE users ADD COLUMN disabledAt TEXT');
+}
 
 // Challenge data table
 db.exec(`

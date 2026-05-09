@@ -12,15 +12,21 @@ router.get('/me', (req, res) => {
   }
 
   const user = db.prepare(
-    'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, createdAt FROM users WHERE id = ?'
+    'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, isAdmin, disabledAt, createdAt FROM users WHERE id = ?'
   ).get(req.session.userId);
 
-  if (!user) {
+  if (!user || user.disabledAt) {
     req.session.destroy(() => {});
     return res.json({ user: null });
   }
 
-  res.json({ user });
+  res.json({
+    user: {
+      ...user,
+      isAdmin: !!user.isAdmin,
+      disabledAt: undefined,
+    },
+  });
 });
 
 // Register
@@ -42,17 +48,24 @@ router.post('/register', (req, res) => {
 
   const passwordHash = bcrypt.hashSync(password, SALT_ROUNDS);
 
+  // Promote the user if their email is in ADMIN_EMAILS, or if this is the
+  // first account to exist and no admin has been seeded yet.
+  const adminEmails = (process.env.ADMIN_EMAILS || '')
+    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  const haveAdmin = !!db.prepare('SELECT 1 FROM users WHERE isAdmin = 1 LIMIT 1').get();
+  const shouldBeAdmin = adminEmails.includes(email.toLowerCase()) || !haveAdmin;
+
   const result = db.prepare(
-    'INSERT INTO users (email, passwordHash, displayName) VALUES (?, ?, ?)'
-  ).run(email, passwordHash, displayName);
+    'INSERT INTO users (email, passwordHash, displayName, isAdmin) VALUES (?, ?, ?, ?)'
+  ).run(email, passwordHash, displayName, shouldBeAdmin ? 1 : 0);
 
   req.session.userId = result.lastInsertRowid;
 
   const user = db.prepare(
-    'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, createdAt FROM users WHERE id = ?'
+    'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, isAdmin, createdAt FROM users WHERE id = ?'
   ).get(result.lastInsertRowid);
 
-  res.status(201).json({ user });
+  res.status(201).json({ user: { ...user, isAdmin: !!user.isAdmin } });
 });
 
 // Login
@@ -68,6 +81,10 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
+  if (user.disabledAt) {
+    return res.status(403).json({ error: 'This account has been disabled' });
+  }
+
   req.session.userId = user.id;
 
   res.json({
@@ -78,6 +95,7 @@ router.post('/login', (req, res) => {
       chesnutBalance: user.chesnutBalance,
       currentStreak: user.currentStreak,
       bestStreak: user.bestStreak,
+      isAdmin: !!user.isAdmin,
       createdAt: user.createdAt,
     },
   });

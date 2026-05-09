@@ -4,9 +4,14 @@ import { readdirSync, existsSync } from 'fs';
 // Auto-discover game entry points from games/ directory
 function getGameEntries() {
   const gamesDir = resolve(__dirname, 'games');
+  const adminEntry = resolve(__dirname, 'admin', 'index.html');
   const entries = {
     main: resolve(__dirname, 'index.html'),
   };
+
+  if (existsSync(adminEntry)) {
+    entries.admin = adminEntry;
+  }
 
   if (existsSync(gamesDir)) {
     const games = readdirSync(gamesDir, { withFileTypes: true })

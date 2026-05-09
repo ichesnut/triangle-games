@@ -135,6 +135,19 @@
       color: #555;
       text-align: center;
     }
+
+    .admin-link {
+      display: none;
+      margin-top: 1.5rem;
+      font-size: 0.85rem;
+      color: #aaa;
+      text-decoration: none;
+      border: 1px solid #2a3050;
+      padding: 0.45rem 0.95rem;
+      border-radius: 8px;
+    }
+    .admin-link.show { display: inline-block; }
+    .admin-link:hover { color: #e94560; border-color: #e94560; }
   </style>
 </head>
 <body>
@@ -159,6 +172,8 @@
       </a>
     </li>
   </ul>
+
+  <a href="/admin/" class="admin-link" id="admin-link">Admin Console</a>
 
   <div class="footer">
     Triangle Games &mdash; mobile-first fun
@@ -222,6 +237,16 @@
       }
       draw();
     })();
+
+    // Show admin link when the signed-in user is an admin
+    fetch('/api/chesnuts/me', { credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.user && data.user.isAdmin) {
+          document.getElementById('admin-link').classList.add('show');
+        }
+      })
+      .catch(() => {});
 
     // Register service worker
     if ('serviceWorker' in navigator) {

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Console — Triangle Games</title>
+  <link rel="stylesheet" href="/shared/reset.css">
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --bg-card: #16213e;
+      --bg-card-2: #0f3460;
+      --accent: #e94560;
+      --text: #eee;
+      --text-dim: #aaa;
+      --border: #2a3050;
+      --green: #2ecc71;
+      --gold: #ffd700;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100dvh;
+      padding: 1.5rem 1rem 3rem;
+    }
+
+    .wrap { max-width: 720px; margin: 0 auto; }
+
+    .top {
+      display: flex; align-items: center; gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .top a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--accent);
+      margin-right: auto;
+    }
+
+    .me { font-size: 0.85rem; color: var(--text-dim); }
+    .me .name { color: var(--text); font-weight: 700; }
+
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .panel h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 0.75rem;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+    }
+    @media (min-width: 540px) {
+      .form-grid { grid-template-columns: 1fr 1fr; }
+      .form-grid .full { grid-column: 1 / -1; }
+    }
+
+    .input-field {
+      width: 100%;
+      padding: 0.65rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-card-2);
+      color: var(--text);
+      font-size: 0.95rem;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+    .input-field:focus { outline: none; border-color: var(--accent); }
+
+    .checkbox-row {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.9rem; color: var(--text-dim);
+      padding: 0.4rem 0;
+    }
+    .checkbox-row input { transform: scale(1.2); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.65rem 1.1rem;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.1s, opacity 0.1s, background 0.1s;
+      font-family: inherit;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; pointer-events: none; }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-secondary { background: var(--bg-card-2); color: var(--text); border: 1px solid var(--border); }
+    .btn-danger { background: #6b1f2f; color: #fff; border: 1px solid #8a2937; }
+    .btn-success { background: #1d6d3a; color: #fff; border: 1px solid #2a8a4d; }
+    .btn-small { padding: 0.4rem 0.75rem; font-size: 0.8rem; }
+
+    .msg { font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.2em; }
+    .msg.error { color: var(--accent); }
+    .msg.success { color: var(--green); }
+
+    .user-list { list-style: none; padding: 0; margin: 0; }
+    .user-row {
+      background: var(--bg-card-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 0.6rem;
+    }
+    .user-row.disabled { opacity: 0.55; }
+    .user-head {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+    }
+    .user-name { font-weight: 700; font-size: 1rem; }
+    .user-email { color: var(--text-dim); font-size: 0.85rem; }
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 0.15rem 0.5rem;
+      border-radius: 5px;
+    }
+    .badge-admin { background: var(--accent); color: #fff; }
+    .badge-disabled { background: #444; color: #ddd; }
+    .badge-me { background: var(--gold); color: #1a1a2e; }
+
+    .user-meta {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-top: 0.25rem;
+    }
+
+    .user-actions {
+      display: flex; gap: 0.4rem; flex-wrap: wrap;
+      margin-top: 0.65rem;
+    }
+
+    .pwd-form {
+      display: none;
+      gap: 0.4rem;
+      margin-top: 0.55rem;
+      flex-wrap: wrap;
+    }
+    .pwd-form.open { display: flex; }
+    .pwd-form input {
+      flex: 1;
+      min-width: 180px;
+      padding: 0.5rem 0.7rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+
+    .empty { color: var(--text-dim); text-align: center; padding: 1rem; }
+
+    .access-denied {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-dim);
+    }
+    .access-denied a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="wrap">
+    <div class="top">
+      <h1>Admin Console</h1>
+      <div class="me" id="me"></div>
+      <a href="/">&larr; Home</a>
+    </div>
+
+    <div id="loading" class="empty">Loading…</div>
+
+    <div id="content" style="display:none">
+      <div class="panel">
+        <h2>Register New User</h2>
+        <form id="register-form" class="form-grid">
+          <input class="input-field" name="displayName" placeholder="Display name" required autocomplete="off">
+          <input class="input-field" name="email" type="email" placeholder="Email" required autocomplete="off">
+          <input class="input-field" name="password" type="text" placeholder="Password (min 6 chars)" required autocomplete="new-password">
+          <label class="checkbox-row full">
+            <input type="checkbox" name="isAdmin"> Make this user an admin
+          </label>
+          <button type="submit" class="btn btn-primary full">Create User</button>
+        </form>
+        <div id="register-msg" class="msg"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Users</h2>
+        <ul class="user-list" id="user-list"></ul>
+        <div id="users-msg" class="msg"></div>
+      </div>
+    </div>
+
+    <div id="denied" class="access-denied" style="display:none">
+      <h1 style="margin-bottom:0.5rem">Access denied</h1>
+      <p>You need to be an admin to view this page.</p>
+      <p style="margin-top:1rem"><a href="/">Back to home</a></p>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
