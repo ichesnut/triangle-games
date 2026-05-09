@@ -3,6 +3,7 @@
 const API = '/api/chesnuts';
 const GUEST_TOKEN_KEY = 'triangle-games:guestToken';
 const GUEST_NAME_KEY = 'triangle-games:guestName';
+const OPEN_REGISTER_TAB_KEY = 'triangle-games:openRegisterTab';
 
 // ── State ──────────────────────────────────────────────
 let csrfToken = null;
@@ -127,6 +128,20 @@ async function checkAuth() {
       document.querySelector('#guest-form input[name="displayName"]').value = last;
     }
   } catch (_) {}
+
+  // If we landed here from the "Register to keep your chesnuts" CTA, open
+  // the Register tab instead of the default Guest tab.
+  let openRegister = false;
+  try {
+    if (sessionStorage.getItem(OPEN_REGISTER_TAB_KEY)) {
+      openRegister = true;
+      sessionStorage.removeItem(OPEN_REGISTER_TAB_KEY);
+    }
+  } catch (_) {}
+  if (openRegister) {
+    const tab = document.querySelector('.auth-tab[data-tab="register"]');
+    if (tab) tab.click();
+  }
 }
 
 function refreshMenuForCurrentUser() {
@@ -237,6 +252,16 @@ document.getElementById('switch-user-link').addEventListener('click', async (e) 
   try { await api('/logout', { method: 'POST' }); } catch (_) {}
   try { localStorage.removeItem(GUEST_NAME_KEY); } catch (_) {}
   // Reload so we re-init CSRF + state cleanly.
+  location.href = location.pathname;
+});
+
+// Guest scoreboard CTA: log them out, hint that the auth screen should land
+// on the Register tab, then reload. Their guest streaks live on the guest
+// row keyed by guestToken; registering with the same browser session merges
+// them in (see mergeGuestIntoUser in server/routes/auth.js).
+document.getElementById('register-to-keep-btn').addEventListener('click', async () => {
+  try { sessionStorage.setItem(OPEN_REGISTER_TAB_KEY, '1'); } catch (_) {}
+  try { await api('/logout', { method: 'POST' }); } catch (_) {}
   location.href = location.pathname;
 });
 
@@ -1007,6 +1032,22 @@ function renderScoreboard(data) {
     `;
     list.appendChild(row);
   });
+
+  // Guest CTA: server filters guest IDs out of totalChesnuts (TRI-55), so a
+  // guest never sees a "+N chesnuts" line for themselves. If they would have
+  // earned chesnuts as a registered user, prompt them to register.
+  const cta = document.getElementById('register-to-keep-btn');
+  cta.hidden = true;
+  if (currentUser?.isGuest) {
+    let wouldHaveEarned = 0;
+    for (const r of data.roundResults || []) {
+      wouldHaveEarned += Number(r.chesnutAwards?.[currentUser.id]) || 0;
+    }
+    if (wouldHaveEarned > 0) {
+      cta.textContent = `Register to keep your ${wouldHaveEarned} chesnut${wouldHaveEarned === 1 ? '' : 's'}!`;
+      cta.hidden = false;
+    }
+  }
 }
 
 // ── Visual feedback ────────────────────────────────────

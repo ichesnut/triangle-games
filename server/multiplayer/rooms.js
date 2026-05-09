@@ -237,10 +237,17 @@ function finishGame(room) {
   room.state = 'finished';
   room.currentChallenge = null;
 
+  // Aggregate chesnuts only for registered users. Guest IDs are negative
+  // (see isUserId in ws.js) and have no balance column to write to —
+  // including them would put a "+N chesnuts" line on the scoreboard that
+  // doesn't match GET /api/chesnuts/me (TRI-55). Per-round chesnutAwards
+  // in roundResults stay unchanged so the client can still surface a
+  // "register to keep your chesnuts" CTA for guests who would have earned.
   const totalChesnuts = new Map();
   for (const result of room.roundResults) {
     for (const [userId, amount] of Object.entries(result.chesnutAwards)) {
       const key = Number(userId);
+      if (key <= 0) continue;
       totalChesnuts.set(key, (totalChesnuts.get(key) || 0) + amount);
     }
   }
