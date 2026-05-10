@@ -47,9 +47,9 @@ let baseUrl;
 const games = [];
 
 before(async () => {
-  db.exec('DELETE FROM quiz_battle_rounds');
-  db.exec('DELETE FROM quiz_battle_players');
-  db.exec('DELETE FROM quiz_battle_games');
+  db.exec('DELETE FROM math_battle_rounds');
+  db.exec('DELETE FROM math_battle_players');
+  db.exec('DELETE FROM math_battle_games');
   db.exec('DELETE FROM quiz_questions');
   db.exec('DELETE FROM quiz_categories');
   db.exec('DELETE FROM quizzes');
@@ -315,7 +315,7 @@ test('TRI-85: multiple games run concurrently in isolation', async () => {
     //    matches.
     for (const s of sessions) {
       const game = db.prepare(
-        'SELECT id, quizId, totalRounds FROM quiz_battle_games WHERE roomCode = ?'
+        'SELECT id, quizId, totalRounds FROM math_battle_games WHERE roomCode = ?'
       ).get(s.code);
       assert.ok(game, `[g${s.index}] game row should be persisted for code ${s.code}`);
       assert.equal(game.quizId, s.quizId,
@@ -323,21 +323,21 @@ test('TRI-85: multiple games run concurrently in isolation', async () => {
       assert.equal(game.totalRounds, QUESTION_COUNT);
 
       const playerRows = db.prepare(
-        'SELECT userId FROM quiz_battle_players WHERE gameId = ?'
+        'SELECT userId FROM math_battle_players WHERE gameId = ?'
       ).all(game.id);
       assert.equal(playerRows.length, 1,
-        `[g${s.index}] expected only the registered host in quiz_battle_players`);
+        `[g${s.index}] expected only the registered host in math_battle_players`);
       assert.equal(playerRows[0].userId, s.hostUserId);
 
       const roundRows = db.prepare(
-        'SELECT roundNumber FROM quiz_battle_rounds WHERE gameId = ? ORDER BY roundNumber ASC'
+        'SELECT roundNumber FROM math_battle_rounds WHERE gameId = ? ORDER BY roundNumber ASC'
       ).all(game.id);
       assert.equal(roundRows.length, QUESTION_COUNT);
     }
 
     // One row per game; nothing extra spilled into the schema.
     const totalGames = db.prepare(
-      'SELECT COUNT(*) AS n FROM quiz_battle_games'
+      'SELECT COUNT(*) AS n FROM math_battle_games'
     ).get().n;
     assert.equal(totalGames, GAME_COUNT);
   } finally {

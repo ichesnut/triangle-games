@@ -42,9 +42,9 @@ const QUESTION_COUNT = 4;
 
 before(async () => {
   // Seed host + guests + a multi-question quiz the host owns.
-  db.exec('DELETE FROM quiz_battle_rounds');
-  db.exec('DELETE FROM quiz_battle_players');
-  db.exec('DELETE FROM quiz_battle_games');
+  db.exec('DELETE FROM math_battle_rounds');
+  db.exec('DELETE FROM math_battle_players');
+  db.exec('DELETE FROM math_battle_games');
   db.exec('DELETE FROM quiz_questions');
   db.exec('DELETE FROM quiz_categories');
   db.exec('DELETE FROM quizzes');
@@ -263,25 +263,25 @@ test('TRI-84: 10 concurrent users complete a full Quiz Battle without message lo
         `[${c.label}] expected no error frames, got: ${JSON.stringify(errors)}`);
     }
 
-    // 9. DB side-effects: the registered host should have a quiz_battle_games
-    //    row, a quiz_battle_players row, and QUESTION_COUNT round records.
+    // 9. DB side-effects: the registered host should have a math_battle_games
+    //    row, a math_battle_players row, and QUESTION_COUNT round records.
     const game = db.prepare(
-      'SELECT id, quizId, totalRounds FROM quiz_battle_games WHERE roomCode = ?'
+      'SELECT id, quizId, totalRounds FROM math_battle_games WHERE roomCode = ?'
     ).get(code);
     assert.ok(game, 'game row should be persisted');
     assert.equal(game.quizId, quizId);
     assert.equal(game.totalRounds, QUESTION_COUNT);
 
     const playerRows = db.prepare(
-      'SELECT userId FROM quiz_battle_players WHERE gameId = ?'
+      'SELECT userId FROM math_battle_players WHERE gameId = ?'
     ).all(game.id);
     // Only the registered host is persisted — guests have negative IDs and
-    // are intentionally excluded from quiz_battle_players (FK -> users).
+    // are intentionally excluded from math_battle_players (FK -> users).
     assert.equal(playerRows.length, 1);
     assert.equal(playerRows[0].userId, hostUserId);
 
     const roundRows = db.prepare(
-      'SELECT roundNumber FROM quiz_battle_rounds WHERE gameId = ? ORDER BY roundNumber ASC'
+      'SELECT roundNumber FROM math_battle_rounds WHERE gameId = ? ORDER BY roundNumber ASC'
     ).all(game.id);
     assert.equal(roundRows.length, QUESTION_COUNT);
   } finally {
