@@ -672,19 +672,23 @@ function renderOptions() {
     const inputType = qFormState.type === 'multiple' ? 'checkbox' : 'radio';
     const checked = qFormState.correctAnswers.includes(idx);
     row.innerHTML = `
+      <button type="button" class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">&#x2630;</button>
       <input type="${inputType}" name="q-correct" ${checked ? 'checked' : ''}>
       <input type="text" class="input-field" placeholder="Option ${idx + 1}">
       <button type="button" class="icon-btn" title="Remove">&times;</button>
     `;
-    const [check, text, remove] = row.children;
+    const [handle, check, text, remove] = row.children;
     text.value = opt;
-    text.addEventListener('input', () => { qFormState.options[idx] = text.value; });
+    // Look up live index on each event because rows can be reordered via drag.
+    const currentIdx = () => [...wrap.children].indexOf(row);
+    text.addEventListener('input', () => { qFormState.options[currentIdx()] = text.value; });
     check.addEventListener('change', () => {
+      const i = currentIdx();
       if (qFormState.type === 'single') {
-        qFormState.correctAnswers = [idx];
+        qFormState.correctAnswers = [i];
       } else {
         const set = new Set(qFormState.correctAnswers);
-        if (check.checked) set.add(idx); else set.delete(idx);
+        if (check.checked) set.add(i); else set.delete(i);
         qFormState.correctAnswers = [...set].sort((a, b) => a - b);
       }
       // Re-render to update radio group
@@ -692,13 +696,84 @@ function renderOptions() {
     });
     remove.addEventListener('click', () => {
       if (qFormState.options.length <= 2) return;
-      qFormState.options.splice(idx, 1);
+      const i = currentIdx();
+      qFormState.options.splice(i, 1);
       qFormState.correctAnswers = qFormState.correctAnswers
-        .filter(i => i !== idx)
-        .map(i => i > idx ? i - 1 : i);
+        .filter(k => k !== i)
+        .map(k => k > i ? k - 1 : k);
       renderOptions();
     });
+    attachOptionDrag(row, handle);
     wrap.appendChild(row);
+  });
+}
+
+// Drag a row by its handle to reorder it within the option list.
+// Uses pointer events so it works on touch and mouse alike. Swaps DOM nodes
+// directly during the drag (no re-render) so listeners stay attached.
+function attachOptionDrag(row, handle) {
+  let pointerId = null;
+
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    pointerId = e.pointerId;
+    handle.setPointerCapture(pointerId);
+    row.classList.add('dragging');
+  });
+
+  handle.addEventListener('pointermove', (e) => {
+    if (pointerId !== e.pointerId) return;
+    const wrap = row.parentElement;
+    if (!wrap) return;
+    const y = e.clientY;
+    const prev = row.previousElementSibling;
+    const next = row.nextElementSibling;
+    if (prev) {
+      const r = prev.getBoundingClientRect();
+      if (y < r.top + r.height / 2) {
+        const i = [...wrap.children].indexOf(row);
+        wrap.insertBefore(row, prev);
+        swapOptionState(i, i - 1);
+        return;
+      }
+    }
+    if (next) {
+      const r = next.getBoundingClientRect();
+      if (y > r.top + r.height / 2) {
+        const i = [...wrap.children].indexOf(row);
+        wrap.insertBefore(row, next.nextElementSibling);
+        swapOptionState(i, i + 1);
+      }
+    }
+  });
+
+  const end = (e) => {
+    if (pointerId == null || (e && pointerId !== e.pointerId)) return;
+    try { handle.releasePointerCapture(pointerId); } catch {}
+    pointerId = null;
+    row.classList.remove('dragging');
+    // Sync placeholder numbers after a drag so they match new positions.
+    syncOptionPlaceholders();
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', end);
+}
+
+function swapOptionState(i, j) {
+  const opts = qFormState.options;
+  [opts[i], opts[j]] = [opts[j], opts[i]];
+  qFormState.correctAnswers = qFormState.correctAnswers.map(k => {
+    if (k === i) return j;
+    if (k === j) return i;
+    return k;
+  });
+}
+
+function syncOptionPlaceholders() {
+  const wrap = document.getElementById('q-options');
+  [...wrap.children].forEach((row, idx) => {
+    const text = row.querySelector('input[type="text"]');
+    if (text) text.placeholder = `Option ${idx + 1}`;
   });
 }
 
