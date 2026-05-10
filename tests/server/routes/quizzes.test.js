@@ -635,3 +635,82 @@ test('GET quiz orders questions by category position then question position; unc
   const order = res.body.quiz.questions.map(q => q.id);
   assert.deepEqual(order, [qA.id, qB.id, qUncat.id]);
 });
+
+// ── Admin override (TRI-88) ────────────────────────────
+//
+// Admins can manage any quiz from the admin console, bypassing the per-route
+// owner check. A non-admin user still cannot touch someone else's quiz.
+
+function asAdmin() {
+  // Promote `otherId` to admin and sign in as them.
+  db.prepare('UPDATE users SET isAdmin = 1 WHERE id = ?').run(otherId);
+  session.userId = otherId;
+}
+
+test('admin can GET another user\'s quiz (TRI-88)', async () => {
+  const quiz = await createQuiz('Owned by Owner');
+  asAdmin();
+  const res = await request('GET', `/api/quizzes/${quiz.id}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.quiz.id, quiz.id);
+});
+
+test('admin can rename another user\'s quiz (TRI-88)', async () => {
+  const quiz = await createQuiz('Original');
+  asAdmin();
+  const res = await request('PATCH', `/api/quizzes/${quiz.id}`, { name: 'Renamed by admin' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.quiz.name, 'Renamed by admin');
+  const row = db.prepare('SELECT ownerUserId FROM quizzes WHERE id = ?').get(quiz.id);
+  assert.equal(row.ownerUserId, ownerId, 'admin edit must not transfer ownership');
+});
+
+test('admin can delete another user\'s quiz (TRI-88)', async () => {
+  const quiz = await createQuiz('To delete');
+  asAdmin();
+  const res = await request('DELETE', `/api/quizzes/${quiz.id}`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT id FROM quizzes WHERE id = ?').get(quiz.id);
+  assert.equal(row, undefined);
+});
+
+test('admin can add a category to another user\'s quiz (TRI-88)', async () => {
+  const quiz = await createQuiz();
+  asAdmin();
+  const res = await request('POST', `/api/quizzes/${quiz.id}/categories`, { name: 'Admin Cat' });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.category.name, 'Admin Cat');
+});
+
+test('admin can add a question to another user\'s quiz (TRI-88)', async () => {
+  const quiz = await createQuiz();
+  asAdmin();
+  const res = await request('POST', `/api/quizzes/${quiz.id}/questions`, {
+    prompt: 'Capital of France?',
+    type: 'single',
+    options: ['Paris', 'Berlin'],
+    correctAnswers: [0],
+  });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.question.prompt, 'Capital of France?');
+});
+
+test('disabled admin loses override — gets 403 like any other non-owner (TRI-88)', async () => {
+  const quiz = await createQuiz();
+  // Promote, then disable, the admin.
+  db.prepare("UPDATE users SET isAdmin = 1, disabledAt = datetime('now') WHERE id = ?")
+    .run(otherId);
+  session.userId = otherId;
+  const res = await request('PATCH', `/api/quizzes/${quiz.id}`, { name: 'Should fail' });
+  assert.equal(res.status, 403);
+});
+
+test('non-admin override does not apply — third user still gets 403 (TRI-88)', async () => {
+  const quiz = await createQuiz();
+  const thirdId = db.prepare(
+    'INSERT INTO users (email, passwordHash, displayName) VALUES (?, ?, ?)'
+  ).run('third@x.io', 'h', 'Third').lastInsertRowid;
+  session.userId = thirdId;
+  const res = await request('PATCH', `/api/quizzes/${quiz.id}`, { name: 'Nope' });
+  assert.equal(res.status, 403);
+});
