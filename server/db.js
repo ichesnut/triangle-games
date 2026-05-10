@@ -175,6 +175,7 @@ db.exec(`
     quizId INTEGER REFERENCES quizzes(id) ON DELETE SET NULL,
     totalRounds INTEGER NOT NULL,
     startedAt TEXT,
+    archivedAt TEXT,
     finishedAt TEXT NOT NULL
   )
 `);
@@ -182,12 +183,16 @@ db.exec(`
 // Migration: older installs created math_battle_games before quizId / startedAt
 // existed; add them so the admin game view (TRI-80) can show which quiz played
 // and how long the game took. Existing rows keep NULL for both.
+// archivedAt (TRI-82) is added the same way for installs predating archive.
 const gameCols = db.prepare('PRAGMA table_info(math_battle_games)').all().map(c => c.name);
 if (!gameCols.includes('quizId')) {
   db.exec('ALTER TABLE math_battle_games ADD COLUMN quizId INTEGER REFERENCES quizzes(id) ON DELETE SET NULL');
 }
 if (!gameCols.includes('startedAt')) {
   db.exec('ALTER TABLE math_battle_games ADD COLUMN startedAt TEXT');
+}
+if (!gameCols.includes('archivedAt')) {
+  db.exec('ALTER TABLE math_battle_games ADD COLUMN archivedAt TEXT');
 }
 
 db.exec(`

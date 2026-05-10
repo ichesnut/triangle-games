@@ -211,11 +211,19 @@ function renderGames(games) {
       ? `${escapeHtml(g.topScorer.displayName || `User #${g.topScorer.userId}`)} (${g.topScorer.roundsWon} won)`
       : '—';
     const quiz = g.quizName ? escapeHtml(g.quizName) : '<span class="user-email">(quiz unknown)</span>';
+    const archived = !!g.archivedAt;
+    const badge = archived
+      ? '<span class="badge badge-disabled">Archived</span>'
+      : '';
+    const archiveBtn = archived
+      ? `<button class="btn btn-success btn-small" data-act="unarchive-game" data-id="${g.id}">Unarchive</button>`
+      : `<button class="btn btn-secondary btn-small" data-act="archive-game" data-id="${g.id}">Archive</button>`;
     return `
-      <li class="user-row" data-game-id="${g.id}">
+      <li class="user-row ${archived ? 'disabled' : ''}" data-game-id="${g.id}">
         <div class="user-head">
           <span class="user-name">${quiz}</span>
           <span class="user-email">Room ${escapeHtml(g.roomCode)}</span>
+          ${badge}
         </div>
         <div class="user-meta">
           ${fmtDateTime(g.startedAt || g.finishedAt)} ·
@@ -223,9 +231,11 @@ function renderGames(games) {
           ${g.totalRounds} round${g.totalRounds === 1 ? '' : 's'} ·
           ${g.playerCount} player${g.playerCount === 1 ? '' : 's'} ·
           Top: ${top}
+          ${archived ? ` · Archived ${fmtDate(g.archivedAt)}` : ''}
         </div>
         <div class="user-actions">
           <button class="btn btn-secondary btn-small" data-act="toggle-game" data-id="${g.id}">View details</button>
+          ${archiveBtn}
         </div>
         <div class="game-detail" data-game-detail="${g.id}"></div>
       </li>
@@ -349,10 +359,31 @@ async function init() {
   await Promise.all([loadUsers(), loadQuizzes(), loadGames()]);
 }
 
-els.gameList.addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-act="toggle-game"]');
+els.gameList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
   if (!btn) return;
-  toggleGameDetail(parseInt(btn.dataset.id, 10), btn);
+  const act = btn.dataset.act;
+  const id = parseInt(btn.dataset.id, 10);
+
+  if (act === 'toggle-game') {
+    toggleGameDetail(id, btn);
+    return;
+  }
+
+  if (act !== 'archive-game' && act !== 'unarchive-game') return;
+
+  setMsg(els.gamesMsg, '');
+  try {
+    if (act === 'archive-game') {
+      if (!confirm('Archive this game? It will be hidden from the games list.')) return;
+      await fetchJson(`${API}/admin/games/${id}/archive`, { method: 'POST' });
+    } else {
+      await fetchJson(`${API}/admin/games/${id}/unarchive`, { method: 'POST' });
+    }
+    await loadGames();
+  } catch (err) {
+    setMsg(els.gamesMsg, err.message, 'error');
+  }
 });
 
 els.registerForm.addEventListener('submit', async (e) => {

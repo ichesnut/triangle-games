@@ -183,9 +183,12 @@ function gameDurationMs(startedAt, finishedAt) {
 }
 
 // GET /games — list every recorded Quiz Battle game with summary stats.
+// Archived rows are included so admins can manage them; the UI surfaces an
+// archived badge and an unarchive action.
 router.get('/games', requireAdmin, (req, res) => {
   const games = db.prepare(`
     SELECT g.id, g.roomCode, g.quizId, g.totalRounds, g.startedAt, g.finishedAt,
+           g.archivedAt,
            q.name AS quizName,
            (SELECT COUNT(*) FROM math_battle_players WHERE gameId = g.id) AS playerCount
     FROM math_battle_games g
@@ -211,11 +214,40 @@ router.get('/games', requireAdmin, (req, res) => {
       totalRounds: g.totalRounds,
       startedAt: g.startedAt,
       finishedAt: g.finishedAt,
+      archivedAt: g.archivedAt,
       durationMs: gameDurationMs(g.startedAt, g.finishedAt),
       playerCount: g.playerCount,
       topScorer: topStmt.get(g.id) || null,
     })),
   });
+});
+
+// POST /games/:id/archive — hide a game from the admin Games view without
+// deleting it (and its rounds/players). Idempotent: archiving an already
+// archived game is a no-op and preserves the original archive time.
+router.post('/games/:id/archive', requireAdmin, (req, res) => {
+  const gameId = parseInt(req.params.id, 10);
+  if (!Number.isInteger(gameId)) return res.status(400).json({ error: 'Invalid game id' });
+
+  const target = db.prepare('SELECT id, archivedAt FROM math_battle_games WHERE id = ?').get(gameId);
+  if (!target) return res.status(404).json({ error: 'Game not found' });
+
+  if (!target.archivedAt) {
+    db.prepare("UPDATE math_battle_games SET archivedAt = datetime('now') WHERE id = ?").run(gameId);
+  }
+  res.json({ ok: true });
+});
+
+// POST /games/:id/unarchive — restore an archived game.
+router.post('/games/:id/unarchive', requireAdmin, (req, res) => {
+  const gameId = parseInt(req.params.id, 10);
+  if (!Number.isInteger(gameId)) return res.status(400).json({ error: 'Invalid game id' });
+
+  const target = db.prepare('SELECT id FROM math_battle_games WHERE id = ?').get(gameId);
+  if (!target) return res.status(404).json({ error: 'Game not found' });
+
+  db.prepare('UPDATE math_battle_games SET archivedAt = NULL WHERE id = ?').run(gameId);
+  res.json({ ok: true });
 });
 
 // GET /games/:id — full detail: every player and every round.
@@ -225,6 +257,7 @@ router.get('/games/:id', requireAdmin, (req, res) => {
 
   const game = db.prepare(`
     SELECT g.id, g.roomCode, g.quizId, g.totalRounds, g.startedAt, g.finishedAt,
+           g.archivedAt,
            q.name AS quizName
     FROM math_battle_games g
     LEFT JOIN quizzes q ON q.id = g.quizId
