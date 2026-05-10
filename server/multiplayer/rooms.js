@@ -94,6 +94,7 @@ function startGame(room) {
     return false;
   }
   room.state = 'playing';
+  room.startedAt = Date.now();
   room.questionIndex = 0;
   room.currentRound = 1;
   room.roundResults = [];

@@ -138,6 +138,99 @@ router.get('/quizzes', requireAdmin, (req, res) => {
   res.json({ quizzes: rows });
 });
 
+// SQLite stores TEXT timestamps as `YYYY-MM-DD HH:MM:SS` in UTC. Parse them
+// back to a Date so we can compute durations between startedAt and finishedAt.
+function parseSqlTimestamp(s) {
+  if (!s) return null;
+  const d = new Date(s.replace(' ', 'T') + 'Z');
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function gameDurationMs(startedAt, finishedAt) {
+  const s = parseSqlTimestamp(startedAt);
+  const f = parseSqlTimestamp(finishedAt);
+  if (!s || !f) return null;
+  return f.getTime() - s.getTime();
+}
+
+// GET /games — list every recorded Quiz Battle game with summary stats.
+router.get('/games', requireAdmin, (req, res) => {
+  const games = db.prepare(`
+    SELECT g.id, g.roomCode, g.quizId, g.totalRounds, g.startedAt, g.finishedAt,
+           q.name AS quizName,
+           (SELECT COUNT(*) FROM math_battle_players WHERE gameId = g.id) AS playerCount
+    FROM math_battle_games g
+    LEFT JOIN quizzes q ON q.id = g.quizId
+    ORDER BY g.finishedAt DESC, g.id DESC
+  `).all();
+
+  const topStmt = db.prepare(`
+    SELECT p.userId, p.roundsWon, u.displayName
+    FROM math_battle_players p
+    LEFT JOIN users u ON u.id = p.userId
+    WHERE p.gameId = ?
+    ORDER BY p.roundsWon DESC, p.id ASC
+    LIMIT 1
+  `);
+
+  res.json({
+    games: games.map(g => ({
+      id: g.id,
+      roomCode: g.roomCode,
+      quizId: g.quizId,
+      quizName: g.quizName,
+      totalRounds: g.totalRounds,
+      startedAt: g.startedAt,
+      finishedAt: g.finishedAt,
+      durationMs: gameDurationMs(g.startedAt, g.finishedAt),
+      playerCount: g.playerCount,
+      topScorer: topStmt.get(g.id) || null,
+    })),
+  });
+});
+
+// GET /games/:id — full detail: every player and every round.
+router.get('/games/:id', requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid game id' });
+
+  const game = db.prepare(`
+    SELECT g.id, g.roomCode, g.quizId, g.totalRounds, g.startedAt, g.finishedAt,
+           q.name AS quizName
+    FROM math_battle_games g
+    LEFT JOIN quizzes q ON q.id = g.quizId
+    WHERE g.id = ?
+  `).get(id);
+  if (!game) return res.status(404).json({ error: 'Game not found' });
+
+  const players = db.prepare(`
+    SELECT p.userId, p.roundsWon, p.chesnutsEarned,
+           u.displayName, u.email
+    FROM math_battle_players p
+    LEFT JOIN users u ON u.id = p.userId
+    WHERE p.gameId = ?
+    ORDER BY p.roundsWon DESC, p.id ASC
+  `).all(id);
+
+  const rounds = db.prepare(`
+    SELECT r.roundNumber, r.challenge, r.correctAnswer, r.winnerId, r.timeTakenMs,
+           u.displayName AS winnerDisplayName
+    FROM math_battle_rounds r
+    LEFT JOIN users u ON u.id = r.winnerId
+    WHERE r.gameId = ?
+    ORDER BY r.roundNumber ASC
+  `).all(id);
+
+  res.json({
+    game: {
+      ...game,
+      durationMs: gameDurationMs(game.startedAt, game.finishedAt),
+      players,
+      rounds,
+    },
+  });
+});
+
 // POST /users/:id/admin — set admin flag
 router.post('/users/:id/admin', requireAdmin, (req, res) => {
   const userId = parseInt(req.params.id, 10);

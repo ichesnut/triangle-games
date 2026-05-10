@@ -179,6 +179,42 @@
 
     .empty { color: var(--text-dim); text-align: center; padding: 1rem; }
 
+    .game-detail {
+      display: none;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+    }
+    .game-detail.open { display: block; }
+    .game-detail h3 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin: 0.4rem 0 0.4rem;
+    }
+    .detail-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .detail-table th, .detail-table td {
+      text-align: left;
+      padding: 0.35rem 0.4rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .detail-table th {
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .detail-table td.dim { color: var(--text-dim); }
+    .detail-table td.num { text-align: right; }
+
     .access-denied {
       text-align: center;
       padding: 3rem 1rem;
@@ -222,6 +258,12 @@
         <h2>Quizzes</h2>
         <ul class="user-list" id="quiz-list"></ul>
         <div id="quizzes-msg" class="msg"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Games</h2>
+        <ul class="user-list" id="game-list"></ul>
+        <div id="games-msg" class="msg"></div>
       </div>
     </div>
 

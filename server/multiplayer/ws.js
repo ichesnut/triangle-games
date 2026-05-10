@@ -60,7 +60,14 @@ const persistStreaks = db.transaction((gameResult, players) => {
   }
 });
 
-const recordGame = db.transaction((roomCode, gameResult, players) => {
+// Convert epoch-ms (e.g. room.startedAt) to the SQLite TEXT format used by
+// datetime('now') so admin queries can compare/display them uniformly.
+function toSqliteTimestamp(epochMs) {
+  if (!epochMs) return null;
+  return new Date(epochMs).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+const recordGame = db.transaction((roomCode, gameResult, players, gameMeta = {}) => {
   const registeredPlayers = players.filter(p => isUserId(p.userId));
   if (!registeredPlayers.length) {
     // No registered players → nothing to persist in math_battle_* (those
@@ -69,9 +76,14 @@ const recordGame = db.transaction((roomCode, gameResult, players) => {
   }
 
   const insertGame = db.prepare(
-    'INSERT INTO math_battle_games (roomCode, totalRounds, finishedAt) VALUES (?, ?, datetime(\'now\'))'
+    "INSERT INTO math_battle_games (roomCode, quizId, totalRounds, startedAt, finishedAt) VALUES (?, ?, ?, ?, datetime('now'))"
   );
-  const { lastInsertRowid: gameId } = insertGame.run(roomCode, gameResult.totalRounds);
+  const { lastInsertRowid: gameId } = insertGame.run(
+    roomCode,
+    gameMeta.quizId ?? null,
+    gameResult.totalRounds,
+    toSqliteTimestamp(gameMeta.startedAt),
+  );
 
   const insertPlayer = db.prepare(
     'INSERT INTO math_battle_players (gameId, userId, roundsWon, chesnutsEarned) VALUES (?, ?, ?, ?)'
@@ -130,7 +142,10 @@ function endGameAndRecord(room, players = Array.from(room.players.values())) {
     console.error('Failed to persist streaks:', err);
   }
   try {
-    recordGame(room.code, gameResult, players);
+    recordGame(room.code, gameResult, players, {
+      startedAt: room.startedAt,
+      quizId: room.quiz?.id ?? null,
+    });
   } catch (err) {
     console.error('Failed to record game:', err);
   }

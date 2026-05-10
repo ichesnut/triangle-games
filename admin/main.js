@@ -11,6 +11,8 @@ const els = {
   usersMsg: document.getElementById('users-msg'),
   quizList: document.getElementById('quiz-list'),
   quizzesMsg: document.getElementById('quizzes-msg'),
+  gameList: document.getElementById('game-list'),
+  gamesMsg: document.getElementById('games-msg'),
 };
 
 let csrfToken = null;
@@ -45,6 +47,25 @@ function fmtDate(s) {
   const d = new Date(s.replace(' ', 'T') + 'Z');
   if (isNaN(d.getTime())) return s;
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function fmtDateTime(s) {
+  if (!s) return '—';
+  const d = new Date(s.replace(' ', 'T') + 'Z');
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function fmtDurationMs(ms) {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return '—';
+  const totalSec = Math.round(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  if (m === 0) return `${s}s`;
+  return `${m}m ${s.toString().padStart(2, '0')}s`;
 }
 
 function escapeHtml(s) {
@@ -148,6 +169,113 @@ async function loadQuizzes() {
   }
 }
 
+function renderGames(games) {
+  if (!games.length) {
+    els.gameList.innerHTML = '<li class="empty">No games played yet.</li>';
+    return;
+  }
+
+  els.gameList.innerHTML = games.map(g => {
+    const top = g.topScorer
+      ? `${escapeHtml(g.topScorer.displayName || `User #${g.topScorer.userId}`)} (${g.topScorer.roundsWon} won)`
+      : '—';
+    const quiz = g.quizName ? escapeHtml(g.quizName) : '<span class="user-email">(quiz unknown)</span>';
+    return `
+      <li class="user-row" data-game-id="${g.id}">
+        <div class="user-head">
+          <span class="user-name">${quiz}</span>
+          <span class="user-email">Room ${escapeHtml(g.roomCode)}</span>
+        </div>
+        <div class="user-meta">
+          ${fmtDateTime(g.startedAt || g.finishedAt)} ·
+          ${fmtDurationMs(g.durationMs)} ·
+          ${g.totalRounds} round${g.totalRounds === 1 ? '' : 's'} ·
+          ${g.playerCount} player${g.playerCount === 1 ? '' : 's'} ·
+          Top: ${top}
+        </div>
+        <div class="user-actions">
+          <button class="btn btn-secondary btn-small" data-act="toggle-game" data-id="${g.id}">View details</button>
+        </div>
+        <div class="game-detail" data-game-detail="${g.id}"></div>
+      </li>
+    `;
+  }).join('');
+}
+
+async function loadGames() {
+  setMsg(els.gamesMsg, '');
+  try {
+    const { games } = await fetchJson(`${API}/admin/games`);
+    renderGames(games);
+  } catch (err) {
+    setMsg(els.gamesMsg, err.message, 'error');
+  }
+}
+
+function renderGameDetail(detail) {
+  const playersRows = detail.players.length
+    ? detail.players.map(p => `
+        <tr>
+          <td>${escapeHtml(p.displayName || `User #${p.userId}`)}</td>
+          <td class="dim">${escapeHtml(p.email || '')}</td>
+          <td class="num">${p.roundsWon}</td>
+          <td class="num">${p.chesnutsEarned}</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="4" class="dim">No registered players recorded.</td></tr>';
+
+  const roundsRows = detail.rounds.length
+    ? detail.rounds.map(r => `
+        <tr>
+          <td class="num">${r.roundNumber}</td>
+          <td>${escapeHtml(r.challenge)}</td>
+          <td class="dim">${escapeHtml(r.correctAnswer)}</td>
+          <td>${r.winnerDisplayName ? escapeHtml(r.winnerDisplayName) : '<span class="dim">—</span>'}</td>
+          <td class="num dim">${r.timeTakenMs != null ? fmtDurationMs(r.timeTakenMs) : '—'}</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="5" class="dim">No rounds recorded.</td></tr>';
+
+  return `
+    <h3>Players</h3>
+    <table class="detail-table">
+      <thead><tr><th>Name</th><th>Email</th><th>Rounds Won</th><th>Chesnuts</th></tr></thead>
+      <tbody>${playersRows}</tbody>
+    </table>
+    <h3>Rounds</h3>
+    <table class="detail-table">
+      <thead><tr><th>#</th><th>Challenge</th><th>Answer</th><th>Winner</th><th>Time</th></tr></thead>
+      <tbody>${roundsRows}</tbody>
+    </table>
+  `;
+}
+
+async function toggleGameDetail(gameId, btn) {
+  const panel = els.gameList.querySelector(`[data-game-detail="${gameId}"]`);
+  if (!panel) return;
+  if (panel.classList.contains('open')) {
+    panel.classList.remove('open');
+    btn.textContent = 'View details';
+    return;
+  }
+
+  if (!panel.dataset.loaded) {
+    panel.innerHTML = '<div class="empty">Loading…</div>';
+    panel.classList.add('open');
+    btn.textContent = 'Hide details';
+    try {
+      const { game } = await fetchJson(`${API}/admin/games/${gameId}`);
+      panel.innerHTML = renderGameDetail(game);
+      panel.dataset.loaded = '1';
+    } catch (err) {
+      panel.innerHTML = `<div class="msg error">${escapeHtml(err.message)}</div>`;
+    }
+  } else {
+    panel.classList.add('open');
+    btn.textContent = 'Hide details';
+  }
+}
+
 async function init() {
   try {
     const csrfRes = await fetchJson(`${API}/csrf-token`);
@@ -187,8 +315,14 @@ async function init() {
   els.loading.style.display = 'none';
   els.content.style.display = 'block';
 
-  await Promise.all([loadUsers(), loadQuizzes()]);
+  await Promise.all([loadUsers(), loadQuizzes(), loadGames()]);
 }
+
+els.gameList.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act="toggle-game"]');
+  if (!btn) return;
+  toggleGameDetail(parseInt(btn.dataset.id, 10), btn);
+});
 
 els.registerForm.addEventListener('submit', async (e) => {
   e.preventDefault();

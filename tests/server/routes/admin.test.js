@@ -26,6 +26,9 @@ before(async () => {
 
 beforeEach(() => {
   for (const k of Object.keys(session)) delete session[k];
+  db.exec('DELETE FROM math_battle_rounds');
+  db.exec('DELETE FROM math_battle_players');
+  db.exec('DELETE FROM math_battle_games');
   db.exec('DELETE FROM quiz_questions');
   db.exec('DELETE FROM quiz_categories');
   db.exec('DELETE FROM quizzes');
@@ -263,6 +266,171 @@ test('POST /users/:id/admin: demoting a non-admin no-ops without the last-admin 
 });
 
 // ── GET /quizzes ──────────────────────────────────────
+
+// ── GET /games ─────────────────────────────────────────
+
+function seedGame({
+  roomCode = 'AAAA',
+  quizId = null,
+  totalRounds = 2,
+  startedAt = '2026-05-09 10:00:00',
+  finishedAt = '2026-05-09 10:05:30',
+  players = [],
+  rounds = [],
+} = {}) {
+  const insertGame = db.prepare(
+    'INSERT INTO math_battle_games (roomCode, quizId, totalRounds, startedAt, finishedAt) VALUES (?, ?, ?, ?, ?)'
+  );
+  const gameId = insertGame.run(roomCode, quizId, totalRounds, startedAt, finishedAt).lastInsertRowid;
+
+  const insertPlayer = db.prepare(
+    'INSERT INTO math_battle_players (gameId, userId, roundsWon, chesnutsEarned) VALUES (?, ?, ?, ?)'
+  );
+  for (const p of players) insertPlayer.run(gameId, p.userId, p.roundsWon, p.chesnutsEarned);
+
+  const insertRound = db.prepare(
+    'INSERT INTO math_battle_rounds (gameId, roundNumber, challenge, correctAnswer, winnerId, timeTakenMs) VALUES (?, ?, ?, ?, ?, ?)'
+  );
+  for (const r of rounds) {
+    insertRound.run(gameId, r.roundNumber, r.challenge, r.correctAnswer, r.winnerId ?? null, r.timeTakenMs ?? null);
+  }
+  return gameId;
+}
+
+test('GET /games 401 without session', async () => {
+  const res = await request('GET', '/api/admin/games');
+  assert.equal(res.status, 401);
+});
+
+test('GET /games 403 when caller is not admin', async () => {
+  asUser();
+  const res = await request('GET', '/api/admin/games');
+  assert.equal(res.status, 403);
+});
+
+test('GET /games returns games newest first with quiz, duration, and top scorer', async () => {
+  const quizId = db.prepare('INSERT INTO quizzes (ownerUserId, name) VALUES (?, ?)')
+    .run(adminId, 'Capitals').lastInsertRowid;
+
+  const olderGameId = seedGame({
+    roomCode: 'OLDR',
+    quizId,
+    totalRounds: 3,
+    startedAt: '2026-05-08 09:00:00',
+    finishedAt: '2026-05-08 09:04:00',
+    players: [
+      { userId: adminId, roundsWon: 1, chesnutsEarned: 3 },
+      { userId: userId, roundsWon: 2, chesnutsEarned: 6 },
+    ],
+  });
+
+  const newerGameId = seedGame({
+    roomCode: 'NEWR',
+    quizId,
+    totalRounds: 5,
+    startedAt: '2026-05-09 10:00:00',
+    finishedAt: '2026-05-09 10:05:30',
+    players: [
+      { userId: adminId, roundsWon: 4, chesnutsEarned: 12 },
+      { userId: userId, roundsWon: 1, chesnutsEarned: 3 },
+    ],
+  });
+
+  asAdmin();
+  const res = await request('GET', '/api/admin/games');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.games.length, 2);
+
+  // Newest first.
+  assert.equal(res.body.games[0].id, newerGameId);
+  assert.equal(res.body.games[1].id, olderGameId);
+
+  const newer = res.body.games[0];
+  assert.equal(newer.roomCode, 'NEWR');
+  assert.equal(newer.quizId, quizId);
+  assert.equal(newer.quizName, 'Capitals');
+  assert.equal(newer.totalRounds, 5);
+  assert.equal(newer.playerCount, 2);
+  assert.equal(newer.durationMs, 5 * 60 * 1000 + 30 * 1000);
+  assert.equal(newer.topScorer.userId, adminId);
+  assert.equal(newer.topScorer.roundsWon, 4);
+  assert.equal(newer.topScorer.displayName, 'Admin');
+});
+
+test('GET /games tolerates legacy rows missing startedAt/quizId', async () => {
+  seedGame({
+    roomCode: 'LEGY',
+    quizId: null,
+    startedAt: null,
+    finishedAt: '2026-05-09 11:00:00',
+    players: [{ userId: userId, roundsWon: 0, chesnutsEarned: 0 }],
+  });
+  asAdmin();
+  const res = await request('GET', '/api/admin/games');
+  assert.equal(res.status, 200);
+  const g = res.body.games[0];
+  assert.equal(g.quizId, null);
+  assert.equal(g.quizName, null);
+  assert.equal(g.startedAt, null);
+  assert.equal(g.durationMs, null);
+});
+
+// ── GET /games/:id ─────────────────────────────────────
+
+test('GET /games/:id returns players and rounds', async () => {
+  const quizId = db.prepare('INSERT INTO quizzes (ownerUserId, name) VALUES (?, ?)')
+    .run(adminId, 'Trivia').lastInsertRowid;
+  const gameId = seedGame({
+    roomCode: 'GAME',
+    quizId,
+    totalRounds: 2,
+    startedAt: '2026-05-09 10:00:00',
+    finishedAt: '2026-05-09 10:02:00',
+    players: [
+      { userId: adminId, roundsWon: 1, chesnutsEarned: 3 },
+      { userId: userId, roundsWon: 1, chesnutsEarned: 3 },
+    ],
+    rounds: [
+      { roundNumber: 1, challenge: 'p1', correctAnswer: 'a1', winnerId: adminId, timeTakenMs: 1500 },
+      { roundNumber: 2, challenge: 'p2', correctAnswer: 'a2', winnerId: null, timeTakenMs: null },
+    ],
+  });
+
+  asAdmin();
+  const res = await request('GET', `/api/admin/games/${gameId}`);
+  assert.equal(res.status, 200);
+  const game = res.body.game;
+  assert.equal(game.id, gameId);
+  assert.equal(game.quizName, 'Trivia');
+  assert.equal(game.durationMs, 2 * 60 * 1000);
+  assert.equal(game.players.length, 2);
+  // Sorted by roundsWon desc, then by player row id asc — both have 1, so admin first.
+  assert.equal(game.players[0].userId, adminId);
+  assert.equal(game.players[0].email, 'admin@x.io');
+  assert.equal(game.rounds.length, 2);
+  assert.equal(game.rounds[0].winnerDisplayName, 'Admin');
+  assert.equal(game.rounds[1].winnerId, null);
+  assert.equal(game.rounds[1].winnerDisplayName, null);
+});
+
+test('GET /games/:id 404 for unknown game', async () => {
+  asAdmin();
+  const res = await request('GET', '/api/admin/games/99999');
+  assert.equal(res.status, 404);
+});
+
+test('GET /games/:id 400 for non-numeric id', async () => {
+  asAdmin();
+  const res = await request('GET', '/api/admin/games/not-a-number');
+  assert.equal(res.status, 400);
+});
+
+test('GET /games/:id 403 for non-admin caller', async () => {
+  const gameId = seedGame({ roomCode: 'XXXX' });
+  asUser();
+  const res = await request('GET', `/api/admin/games/${gameId}`);
+  assert.equal(res.status, 403);
+});
 
 test('GET /quizzes lists every quiz with owner info and question counts', async () => {
   // Owner-1 quiz with 2 questions, owner-2 quiz with 0.

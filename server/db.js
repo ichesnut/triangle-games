@@ -165,10 +165,23 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS math_battle_games (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     roomCode TEXT NOT NULL,
+    quizId INTEGER REFERENCES quizzes(id) ON DELETE SET NULL,
     totalRounds INTEGER NOT NULL,
+    startedAt TEXT,
     finishedAt TEXT NOT NULL
   )
 `);
+
+// Migration: older installs created math_battle_games before quizId / startedAt
+// existed; add them so the admin game view (TRI-80) can show which quiz played
+// and how long the game took. Existing rows keep NULL for both.
+const gameCols = db.prepare('PRAGMA table_info(math_battle_games)').all().map(c => c.name);
+if (!gameCols.includes('quizId')) {
+  db.exec('ALTER TABLE math_battle_games ADD COLUMN quizId INTEGER REFERENCES quizzes(id) ON DELETE SET NULL');
+}
+if (!gameCols.includes('startedAt')) {
+  db.exec('ALTER TABLE math_battle_games ADD COLUMN startedAt TEXT');
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS math_battle_players (
