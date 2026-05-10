@@ -123,9 +123,16 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ownerUserId INTEGER NOT NULL REFERENCES users(id),
     name TEXT NOT NULL,
+    archivedAt TEXT,
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )
 `);
+
+// Migration: add archivedAt to existing installs (TRI-81).
+const quizCols = db.prepare('PRAGMA table_info(quizzes)').all().map(c => c.name);
+if (!quizCols.includes('archivedAt')) {
+  db.exec('ALTER TABLE quizzes ADD COLUMN archivedAt TEXT');
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS quiz_categories (

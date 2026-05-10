@@ -75,6 +75,19 @@ test('GET /api/quizzes lists only the caller\'s quizzes with question counts', a
   assert.ok(res.body.quizzes.every(q => typeof q.questionCount === 'number'));
 });
 
+test('GET /api/quizzes hides archived quizzes from owners (TRI-81)', async () => {
+  asOwner();
+  const live = await request('POST', '/api/quizzes', { name: 'Live Quiz' });
+  await request('POST', '/api/quizzes', { name: 'Archived Quiz' });
+  db.prepare("UPDATE quizzes SET archivedAt = datetime('now') WHERE name = ?")
+    .run('Archived Quiz');
+
+  const res = await request('GET', '/api/quizzes');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.quizzes.length, 1);
+  assert.equal(res.body.quizzes[0].id, live.body.quiz.id);
+});
+
 // ── Create ─────────────────────────────────────────────
 
 test('POST /api/quizzes creates a quiz and returns it with empty questions/categories', async () => {

@@ -40,7 +40,7 @@ function loadCategoryRow(row) {
 
 function getQuiz(quizId, userId) {
   const quiz = db.prepare(
-    'SELECT id, ownerUserId, name, createdAt FROM quizzes WHERE id = ?'
+    'SELECT id, ownerUserId, name, archivedAt, createdAt FROM quizzes WHERE id = ?'
   ).get(quizId);
   if (!quiz) return null;
   if (userId != null && quiz.ownerUserId !== userId) return 'forbidden';
@@ -49,7 +49,7 @@ function getQuiz(quizId, userId) {
 
 function loadQuizWithQuestions(quizId) {
   const quiz = db.prepare(
-    'SELECT id, ownerUserId, name, createdAt FROM quizzes WHERE id = ?'
+    'SELECT id, ownerUserId, name, archivedAt, createdAt FROM quizzes WHERE id = ?'
   ).get(quizId);
   if (!quiz) return null;
 
@@ -144,13 +144,14 @@ function normalizeQuestionPayload(body) {
   };
 }
 
-// List quizzes for current user (with question counts)
+// List quizzes for current user (with question counts). Archived quizzes are
+// hidden from owners — they can only be restored by an admin.
 router.get('/', requireAuth, (req, res) => {
   const rows = db.prepare(`
     SELECT q.id, q.name, q.createdAt,
            (SELECT COUNT(*) FROM quiz_questions WHERE quizId = q.id) AS questionCount
     FROM quizzes q
-    WHERE q.ownerUserId = ?
+    WHERE q.ownerUserId = ? AND q.archivedAt IS NULL
     ORDER BY q.createdAt DESC, q.id DESC
   `).all(req.session.userId);
   res.json({ quizzes: rows });

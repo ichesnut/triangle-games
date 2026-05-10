@@ -123,10 +123,11 @@ router.post('/users/:id/enable', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /quizzes — list all quizzes across all owners
+// GET /quizzes — list all quizzes across all owners (archived rows included
+// so admins can manage them; the UI surfaces them with an archive badge).
 router.get('/quizzes', requireAdmin, (req, res) => {
   const rows = db.prepare(`
-    SELECT q.id, q.name, q.createdAt,
+    SELECT q.id, q.name, q.createdAt, q.archivedAt,
            q.ownerUserId,
            u.email AS ownerEmail,
            u.displayName AS ownerDisplayName,
@@ -136,6 +137,34 @@ router.get('/quizzes', requireAdmin, (req, res) => {
     ORDER BY q.createdAt DESC, q.id DESC
   `).all();
   res.json({ quizzes: rows });
+});
+
+// POST /quizzes/:id/archive — hide a quiz from owner lists and quiz picker
+// without deleting it (and its history). Idempotent: archiving an already
+// archived quiz is a no-op.
+router.post('/quizzes/:id/archive', requireAdmin, (req, res) => {
+  const quizId = parseInt(req.params.id, 10);
+  if (!Number.isInteger(quizId)) return res.status(400).json({ error: 'Invalid quiz id' });
+
+  const target = db.prepare('SELECT id, archivedAt FROM quizzes WHERE id = ?').get(quizId);
+  if (!target) return res.status(404).json({ error: 'Quiz not found' });
+
+  if (!target.archivedAt) {
+    db.prepare("UPDATE quizzes SET archivedAt = datetime('now') WHERE id = ?").run(quizId);
+  }
+  res.json({ ok: true });
+});
+
+// POST /quizzes/:id/unarchive — restore an archived quiz.
+router.post('/quizzes/:id/unarchive', requireAdmin, (req, res) => {
+  const quizId = parseInt(req.params.id, 10);
+  if (!Number.isInteger(quizId)) return res.status(400).json({ error: 'Invalid quiz id' });
+
+  const target = db.prepare('SELECT id FROM quizzes WHERE id = ?').get(quizId);
+  if (!target) return res.status(404).json({ error: 'Quiz not found' });
+
+  db.prepare('UPDATE quizzes SET archivedAt = NULL WHERE id = ?').run(quizId);
+  res.json({ ok: true });
 });
 
 // SQLite stores TEXT timestamps as `YYYY-MM-DD HH:MM:SS` in UTC. Parse them

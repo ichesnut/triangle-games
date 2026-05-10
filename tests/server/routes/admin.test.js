@@ -448,7 +448,79 @@ test('GET /quizzes lists every quiz with owner info and question counts', async 
   const adminQuiz = res.body.quizzes.find(q => q.name === 'Admin Q');
   assert.equal(adminQuiz.questionCount, 2);
   assert.equal(adminQuiz.ownerEmail, 'admin@x.io');
+  assert.equal(adminQuiz.archivedAt, null);
   const userQuiz = res.body.quizzes.find(q => q.name === 'User Q');
   assert.equal(userQuiz.questionCount, 0);
   assert.equal(userQuiz.ownerEmail, 'user@x.io');
+});
+
+test('GET /quizzes includes archived quizzes with archivedAt populated', async () => {
+  const q1 = db.prepare("INSERT INTO quizzes (ownerUserId, name, archivedAt) VALUES (?, ?, datetime('now'))")
+    .run(userId, 'Archived Q').lastInsertRowid;
+  asAdmin();
+  const res = await request('GET', '/api/admin/quizzes');
+  assert.equal(res.status, 200);
+  const archived = res.body.quizzes.find(q => q.id === q1);
+  assert.ok(archived);
+  assert.ok(archived.archivedAt);
+});
+
+// ── POST /quizzes/:id/archive ─────────────────────────
+
+test('POST /quizzes/:id/archive sets archivedAt', async () => {
+  const quizId = db.prepare('INSERT INTO quizzes (ownerUserId, name) VALUES (?, ?)')
+    .run(userId, 'To Archive').lastInsertRowid;
+  asAdmin();
+  const res = await request('POST', `/api/admin/quizzes/${quizId}/archive`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT archivedAt FROM quizzes WHERE id = ?').get(quizId);
+  assert.ok(row.archivedAt);
+});
+
+test('POST /quizzes/:id/archive is idempotent and preserves original archive time', async () => {
+  const quizId = db.prepare("INSERT INTO quizzes (ownerUserId, name, archivedAt) VALUES (?, ?, '2026-01-01 00:00:00')")
+    .run(userId, 'Already Archived').lastInsertRowid;
+  asAdmin();
+  const res = await request('POST', `/api/admin/quizzes/${quizId}/archive`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT archivedAt FROM quizzes WHERE id = ?').get(quizId);
+  assert.equal(row.archivedAt, '2026-01-01 00:00:00');
+});
+
+test('POST /quizzes/:id/archive 404 unknown quiz', async () => {
+  asAdmin();
+  const res = await request('POST', '/api/admin/quizzes/99999/archive');
+  assert.equal(res.status, 404);
+});
+
+test('POST /quizzes/:id/archive 400 non-numeric id', async () => {
+  asAdmin();
+  const res = await request('POST', '/api/admin/quizzes/not-a-number/archive');
+  assert.equal(res.status, 400);
+});
+
+test('POST /quizzes/:id/archive 403 for non-admin caller', async () => {
+  const quizId = db.prepare('INSERT INTO quizzes (ownerUserId, name) VALUES (?, ?)')
+    .run(userId, 'X').lastInsertRowid;
+  asUser();
+  const res = await request('POST', `/api/admin/quizzes/${quizId}/archive`);
+  assert.equal(res.status, 403);
+});
+
+// ── POST /quizzes/:id/unarchive ───────────────────────
+
+test('POST /quizzes/:id/unarchive clears archivedAt', async () => {
+  const quizId = db.prepare("INSERT INTO quizzes (ownerUserId, name, archivedAt) VALUES (?, ?, datetime('now'))")
+    .run(userId, 'Restore me').lastInsertRowid;
+  asAdmin();
+  const res = await request('POST', `/api/admin/quizzes/${quizId}/unarchive`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT archivedAt FROM quizzes WHERE id = ?').get(quizId);
+  assert.equal(row.archivedAt, null);
+});
+
+test('POST /quizzes/:id/unarchive 404 unknown quiz', async () => {
+  asAdmin();
+  const res = await request('POST', '/api/admin/quizzes/99999/unarchive');
+  assert.equal(res.status, 404);
 });

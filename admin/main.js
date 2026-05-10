@@ -144,16 +144,26 @@ function renderQuizzes(quizzes) {
     const owner = q.ownerDisplayName
       ? `${escapeHtml(q.ownerDisplayName)} <span class="user-email">&lt;${escapeHtml(q.ownerEmail || '')}&gt;</span>`
       : '<span class="user-email">(owner missing)</span>';
+    const archived = !!q.archivedAt;
+    const badge = archived
+      ? '<span class="badge badge-disabled">Archived</span>'
+      : '';
+    const action = archived
+      ? `<button class="btn btn-success btn-small" data-act="unarchive" data-id="${q.id}">Unarchive</button>`
+      : `<button class="btn btn-secondary btn-small" data-act="archive" data-id="${q.id}">Archive</button>`;
     return `
-      <li class="user-row" data-id="${q.id}">
+      <li class="user-row ${archived ? 'disabled' : ''}" data-id="${q.id}">
         <div class="user-head">
           <span class="user-name">${escapeHtml(q.name)}</span>
+          ${badge}
         </div>
         <div class="user-meta">
           ${q.questionCount} question${q.questionCount === 1 ? '' : 's'} ·
           owned by ${owner} ·
           Created ${fmtDate(q.createdAt)}
+          ${archived ? ` · Archived ${fmtDate(q.archivedAt)}` : ''}
         </div>
+        <div class="user-actions">${action}</div>
       </li>
     `;
   }).join('');
@@ -168,6 +178,27 @@ async function loadQuizzes() {
     setMsg(els.quizzesMsg, err.message, 'error');
   }
 }
+
+els.quizList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const id = parseInt(btn.dataset.id, 10);
+  const act = btn.dataset.act;
+  setMsg(els.quizzesMsg, '');
+  try {
+    if (act === 'archive') {
+      if (!confirm('Archive this quiz? Players will no longer see it.')) return;
+      await fetchJson(`${API}/admin/quizzes/${id}/archive`, { method: 'POST' });
+    } else if (act === 'unarchive') {
+      await fetchJson(`${API}/admin/quizzes/${id}/unarchive`, { method: 'POST' });
+    } else {
+      return;
+    }
+    await loadQuizzes();
+  } catch (err) {
+    setMsg(els.quizzesMsg, err.message, 'error');
+  }
+});
 
 function renderGames(games) {
   if (!games.length) {

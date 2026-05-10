@@ -279,6 +279,10 @@ export function attachWebSocketServer(httpServer, sessionParser) {
             sendError(ws, 'Only the quiz owner can host it');
             return;
           }
+          if (quiz.archivedAt) {
+            sendError(ws, 'Quiz has been archived');
+            return;
+          }
           if (!quiz.questions.length) {
             sendError(ws, 'Quiz has no questions yet');
             return;
