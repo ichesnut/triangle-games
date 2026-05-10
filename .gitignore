@@ -6,3 +6,4 @@ data/
 agents/
 coverage/
 .nyc_output/
+reports/

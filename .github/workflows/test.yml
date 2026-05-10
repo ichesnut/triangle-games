@@ -25,6 +25,10 @@ jobs:
       - name: Run tests with coverage
         run: npm run coverage:check
 
+      - name: Generate quality report
+        if: always()
+        run: npm run report:quality
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
@@ -33,40 +37,78 @@ jobs:
           path: coverage/
           retention-days: 14
 
-      - name: Post coverage summary on PR
+      - name: Upload quality report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-report
+          path: reports/
+          retention-days: 14
+
+      - name: Post coverage + quality summary on PR
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const path = 'coverage/coverage-summary.json';
-            if (!fs.existsSync(path)) {
-              core.warning('coverage-summary.json missing — skipping PR comment');
-              return;
+            const covPath = 'coverage/coverage-summary.json';
+            const qrPath = 'reports/code-quality.json';
+            const parts = [];
+
+            if (fs.existsSync(covPath)) {
+              const summary = JSON.parse(fs.readFileSync(covPath, 'utf8')).total;
+              const pct = (m) => `${m.pct.toFixed(2)}% (${m.covered}/${m.total})`;
+              parts.push(
+                '## Coverage',
+                '',
+                '| Metric | Coverage |',
+                '| --- | --- |',
+                `| Lines | ${pct(summary.lines)} |`,
+                `| Statements | ${pct(summary.statements)} |`,
+                `| Functions | ${pct(summary.functions)} |`,
+                `| Branches | ${pct(summary.branches)} |`,
+                '',
+                '<sub>Threshold: 85% lines/functions/statements, 75% branches.</sub>',
+                '',
+              );
+            } else {
+              core.warning('coverage-summary.json missing — skipping coverage section');
             }
-            const summary = JSON.parse(fs.readFileSync(path, 'utf8')).total;
-            const pct = (m) => `${m.pct.toFixed(2)}% (${m.covered}/${m.total})`;
-            const body = [
-              '## Coverage',
-              '',
-              '| Metric | Coverage |',
-              '| --- | --- |',
-              `| Lines | ${pct(summary.lines)} |`,
-              `| Statements | ${pct(summary.statements)} |`,
-              `| Functions | ${pct(summary.functions)} |`,
-              `| Branches | ${pct(summary.branches)} |`,
-              '',
-              '<sub>Threshold: 85% lines/functions/statements, 75% branches.</sub>',
-            ].join('\n');
+
+            if (fs.existsSync(qrPath)) {
+              const qr = JSON.parse(fs.readFileSync(qrPath, 'utf8'));
+              const g = qr.grades;
+              const s = qr.summary;
+              const v = s.vulnerabilities ?? {};
+              const badge = (x) => ({ A: '🟢', B: '🟢', C: '🟡', D: '🟠', E: '🔴' }[x] ?? '⚪');
+              parts.push(
+                '## Code Quality',
+                '',
+                '| Category | Grade | Detail |',
+                '| --- | --- | --- |',
+                `| Reliability | ${badge(g.reliability)} ${g.reliability} | ${s.bugs} bug(s) |`,
+                `| Security | ${badge(g.security)} ${g.security} | ${v.critical ?? 0} crit, ${v.high ?? 0} high, ${v.moderate ?? 0} mod, ${v.low ?? 0} low |`,
+                `| Maintainability | ${badge(g.maintainability)} ${g.maintainability} | ${s.codeSmells} smell(s), ${s.smellsPerKloc}/KLOC |`,
+                `| Duplication | ${badge(g.duplication)} ${g.duplication} | ${s.duplicationPct}% (${s.duplicatedLines} lines) |`,
+                '',
+                `<sub>${s.linesCode} LOC across ${s.jsFiles} JS files. Full report in the "quality-report" artifact.</sub>`,
+                '',
+              );
+            } else {
+              core.warning('code-quality.json missing — skipping quality section');
+            }
+
+            if (parts.length === 0) return;
+
+            const marker = '<!-- triangle-games-ci-summary -->';
+            const body = `${marker}\n${parts.join('\n')}`;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
-            const existing = comments.find(c =>
-              c.user.type === 'Bot' && c.body.startsWith('## Coverage')
-            );
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
             if (existing) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,

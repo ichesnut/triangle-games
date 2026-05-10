@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "test": "node --test --test-force-exit 'tests/**/*.test.js'",
     "coverage": "c8 --reporter=text --reporter=lcov --reporter=json-summary node --test --test-force-exit 'tests/**/*.test.js'",
-    "coverage:check": "c8 --reporter=text --reporter=lcov --reporter=json-summary --check-coverage node --test --test-force-exit 'tests/**/*.test.js'"
+    "coverage:check": "c8 --reporter=text --reporter=lcov --reporter=json-summary --check-coverage node --test --test-force-exit 'tests/**/*.test.js'",
+    "report:quality": "node scripts/quality-report.mjs",
+    "report:full": "npm run coverage && npm run report:quality"
   },
   "keywords": [],
   "author": "Triangle Games",
