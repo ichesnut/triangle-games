@@ -186,6 +186,197 @@
       border-top: 1px solid var(--border);
     }
     .game-detail.open { display: block; }
+
+    .quiz-create-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .quiz-create-row .input-field { flex: 1; min-width: 200px; }
+
+    .quiz-editor { display: none; }
+    .quiz-editor.open { display: block; }
+    #content.editor-open > .panel:not(.quiz-editor) { display: none; }
+
+    .editor-head {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .editor-head .editor-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      flex: 1;
+      min-width: 0;
+    }
+    .editor-back {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 0.4rem 0.7rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-family: inherit;
+    }
+    .editor-rename-row {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .editor-rename-row .input-field { flex: 1; min-width: 200px; }
+
+    .editor-meta { color: var(--text-dim); font-size: 0.82rem; margin-bottom: 0.75rem; }
+
+    .editor-section {
+      background: var(--bg-card-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 0.85rem;
+    }
+    .editor-section-head {
+      font-size: 0.78rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .category-list { list-style: none; padding: 0; margin: 0 0 0.5rem; }
+    .category-row {
+      display: flex; align-items: center; gap: 0.35rem;
+      padding: 0.4rem 0.5rem;
+      background: var(--bg-card);
+      border-radius: 8px;
+      margin-bottom: 0.35rem;
+      font-size: 0.9rem;
+      border: 1px solid var(--border);
+    }
+    .category-row .cat-name { flex: 1; font-weight: 600; }
+    .category-row input.cat-name-input {
+      flex: 1;
+      background: var(--bg-card-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+    .icon-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      min-width: 2rem; min-height: 2rem;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 6px;
+      cursor: pointer; font-size: 1rem; line-height: 1;
+      font-family: inherit;
+    }
+    .icon-btn:disabled { opacity: 0.35; pointer-events: none; }
+
+    .cat-empty { color: var(--text-dim); font-size: 0.85rem; padding: 0.2rem 0 0.5rem; }
+
+    .question-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 0.5rem;
+    }
+    .question-group-head {
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-weight: 700;
+      margin: 0.4rem 0 0.3rem;
+      padding-left: 0.1rem;
+    }
+    .question-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.65rem 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .question-head {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.35rem;
+    }
+    .question-pos {
+      background: var(--accent);
+      color: #fff;
+      width: 1.4rem; height: 1.4rem;
+      border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.72rem; font-weight: 800;
+      flex: 0 0 auto;
+    }
+    .question-type-tag {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: var(--bg-card-2);
+      color: var(--text-dim);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+    }
+    .question-prompt { font-size: 0.92rem; margin-bottom: 0.25rem; }
+    .question-answers { font-size: 0.78rem; color: var(--text-dim); }
+    .question-actions {
+      display: flex; gap: 0.3rem; margin-top: 0.4rem; flex-wrap: wrap;
+    }
+
+    .q-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .q-form label {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-top: 0.15rem;
+    }
+    .textarea-field {
+      width: 100%;
+      padding: 0.55rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 0.9rem;
+      min-height: 3rem;
+      resize: vertical;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+    .textarea-field:focus { outline: none; border-color: var(--accent); }
+
+    .option-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.3rem;
+    }
+    .option-row .input-field { flex: 1; min-width: 0; padding: 0.45rem 0.65rem; }
+    .option-row input[type=checkbox],
+    .option-row input[type=radio] { transform: scale(1.15); }
+
+    .q-form-buttons {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      flex-wrap: wrap;
+    }
     .game-detail h3 {
       font-size: 0.78rem;
       font-weight: 700;
@@ -234,6 +425,70 @@
     <div id="loading" class="empty">Loading…</div>
 
     <div id="content" style="display:none">
+      <div class="panel quiz-editor" id="quiz-editor">
+        <div class="editor-head">
+          <span class="editor-title" id="editor-title">Quiz</span>
+          <button type="button" class="editor-back" id="editor-back">&larr; Back</button>
+        </div>
+        <div class="editor-meta" id="editor-meta"></div>
+
+        <div class="editor-rename-row">
+          <input class="input-field" id="editor-rename-input" placeholder="Rename quiz" maxlength="80">
+          <button type="button" class="btn btn-secondary btn-small" id="editor-rename-btn">Save name</button>
+        </div>
+        <div id="editor-rename-msg" class="msg"></div>
+
+        <div class="editor-section">
+          <div class="editor-section-head">Categories</div>
+          <ul class="category-list" id="category-list"></ul>
+          <div class="quiz-create-row">
+            <input class="input-field" id="new-category-name" placeholder="New category name" maxlength="60">
+            <button type="button" class="btn btn-secondary btn-small" id="new-category-btn">+ Add</button>
+          </div>
+          <div id="category-msg" class="msg"></div>
+        </div>
+
+        <div class="editor-section">
+          <div class="editor-section-head">Questions</div>
+          <ul class="question-list" id="question-list"></ul>
+        </div>
+
+        <div class="editor-section">
+          <div class="editor-section-head" id="q-form-head">Add Question</div>
+          <div class="q-form">
+            <label for="q-prompt">Prompt</label>
+            <textarea class="textarea-field" id="q-prompt" placeholder="What is 2 + 2?" maxlength="500"></textarea>
+
+            <label for="q-category">Category</label>
+            <select class="input-field" id="q-category"></select>
+
+            <label for="q-type">Answer type</label>
+            <select class="input-field" id="q-type">
+              <option value="free">Free type</option>
+              <option value="single">Single choice</option>
+              <option value="multiple">Multiple choice</option>
+            </select>
+
+            <div id="q-free-area">
+              <label for="q-free-answers">Accepted answers (one per line, case-insensitive)</label>
+              <textarea class="textarea-field" id="q-free-answers" placeholder="4&#10;four"></textarea>
+            </div>
+
+            <div id="q-choice-area" style="display:none">
+              <label>Options (mark the correct one)</label>
+              <div id="q-options"></div>
+              <button type="button" class="btn btn-secondary btn-small" id="q-add-option" style="margin-top:0.4rem">+ Add option</button>
+            </div>
+
+            <div id="q-form-msg" class="msg"></div>
+            <div class="q-form-buttons">
+              <button type="button" class="btn btn-secondary btn-small" id="q-cancel-btn" style="display:none">Cancel</button>
+              <button type="button" class="btn btn-primary btn-small" id="q-save-btn">Add Question</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="panel">
         <h2>Register New User</h2>
         <form id="register-form" class="form-grid">
@@ -254,9 +509,13 @@
         <div id="users-msg" class="msg"></div>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="quizzes-panel">
         <h2>Quizzes</h2>
         <ul class="user-list" id="quiz-list"></ul>
+        <div class="quiz-create-row">
+          <input class="input-field" id="new-quiz-name" placeholder="New quiz name" maxlength="80">
+          <button type="button" class="btn btn-primary btn-small" id="new-quiz-btn">Create Quiz</button>
+        </div>
         <div id="quizzes-msg" class="msg"></div>
       </div>
 

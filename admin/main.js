@@ -11,12 +11,54 @@ const els = {
   usersMsg: document.getElementById('users-msg'),
   quizList: document.getElementById('quiz-list'),
   quizzesMsg: document.getElementById('quizzes-msg'),
+  newQuizName: document.getElementById('new-quiz-name'),
+  newQuizBtn: document.getElementById('new-quiz-btn'),
   gameList: document.getElementById('game-list'),
   gamesMsg: document.getElementById('games-msg'),
+  editor: document.getElementById('quiz-editor'),
+  editorTitle: document.getElementById('editor-title'),
+  editorMeta: document.getElementById('editor-meta'),
+  editorBack: document.getElementById('editor-back'),
+  editorRenameInput: document.getElementById('editor-rename-input'),
+  editorRenameBtn: document.getElementById('editor-rename-btn'),
+  editorRenameMsg: document.getElementById('editor-rename-msg'),
+  categoryList: document.getElementById('category-list'),
+  newCategoryName: document.getElementById('new-category-name'),
+  newCategoryBtn: document.getElementById('new-category-btn'),
+  categoryMsg: document.getElementById('category-msg'),
+  questionList: document.getElementById('question-list'),
+  qFormHead: document.getElementById('q-form-head'),
+  qPrompt: document.getElementById('q-prompt'),
+  qCategory: document.getElementById('q-category'),
+  qType: document.getElementById('q-type'),
+  qFreeArea: document.getElementById('q-free-area'),
+  qFreeAnswers: document.getElementById('q-free-answers'),
+  qChoiceArea: document.getElementById('q-choice-area'),
+  qOptions: document.getElementById('q-options'),
+  qAddOption: document.getElementById('q-add-option'),
+  qFormMsg: document.getElementById('q-form-msg'),
+  qSaveBtn: document.getElementById('q-save-btn'),
+  qCancelBtn: document.getElementById('q-cancel-btn'),
 };
 
 let csrfToken = null;
 let currentUser = null;
+
+let editingQuizId = null;
+let editingQuiz = null;
+let editingQuestionId = null;
+let qFormState = freshQFormState();
+
+function freshQFormState() {
+  return {
+    type: 'free',
+    prompt: '',
+    categoryId: null,
+    freeAnswers: '',
+    options: ['', ''],
+    correctAnswers: [],
+  };
+}
 
 async function fetchJson(url, opts = {}) {
   const headers = { ...(opts.headers || {}) };
@@ -156,9 +198,11 @@ function renderQuizzes(quizzes) {
     const badge = archived
       ? '<span class="badge badge-disabled">Archived</span>'
       : '';
-    const action = archived
+    const archiveBtn = archived
       ? `<button class="btn btn-success btn-small" data-act="unarchive" data-id="${q.id}">Unarchive</button>`
       : `<button class="btn btn-secondary btn-small" data-act="archive" data-id="${q.id}">Archive</button>`;
+    const editBtn = `<button class="btn btn-secondary btn-small" data-act="edit" data-id="${q.id}">Edit</button>`;
+    const deleteBtn = `<button class="btn btn-danger btn-small" data-act="delete" data-id="${q.id}">Delete</button>`;
     return `
       <li class="user-row ${archived ? 'disabled' : ''}" data-id="${q.id}">
         <div class="user-head">
@@ -171,7 +215,7 @@ function renderQuizzes(quizzes) {
           Created ${fmtDate(q.createdAt)}
           ${archived ? ` · Archived ${fmtDate(q.archivedAt)}` : ''}
         </div>
-        <div class="user-actions">${action}</div>
+        <div class="user-actions">${editBtn} ${archiveBtn} ${deleteBtn}</div>
       </li>
     `;
   }).join('');
@@ -199,6 +243,12 @@ els.quizList.addEventListener('click', async (e) => {
       await fetchJson(`${API}/admin/quizzes/${id}/archive`, { method: 'POST' });
     } else if (act === 'unarchive') {
       await fetchJson(`${API}/admin/quizzes/${id}/unarchive`, { method: 'POST' });
+    } else if (act === 'delete') {
+      if (!confirm('Delete this quiz? This removes all questions and cannot be undone.')) return;
+      await fetchJson(`${API}/quizzes/${id}`, { method: 'DELETE' });
+    } else if (act === 'edit') {
+      openQuizEditor(id);
+      return;
     } else {
       return;
     }
@@ -206,6 +256,30 @@ els.quizList.addEventListener('click', async (e) => {
   } catch (err) {
     setMsg(els.quizzesMsg, err.message, 'error');
   }
+});
+
+els.newQuizBtn.addEventListener('click', async () => {
+  setMsg(els.quizzesMsg, '');
+  const name = els.newQuizName.value.trim();
+  if (!name) {
+    setMsg(els.quizzesMsg, 'Enter a quiz name.', 'error');
+    return;
+  }
+  try {
+    const { quiz } = await fetchJson(`${API}/quizzes`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+    els.newQuizName.value = '';
+    await loadQuizzes();
+    openQuizEditor(quiz.id);
+  } catch (err) {
+    setMsg(els.quizzesMsg, err.message, 'error');
+  }
+});
+
+els.newQuizName.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); els.newQuizBtn.click(); }
 });
 
 function renderGames(games) {
@@ -484,6 +558,445 @@ els.list.addEventListener('submit', async (e) => {
     setMsg(els.usersMsg, 'Password updated.', 'success');
   } catch (err) {
     setMsg(els.usersMsg, err.message, 'error');
+  }
+});
+
+// ── Quiz editor ─────────────────────────────────────────
+
+async function openQuizEditor(quizId) {
+  editingQuizId = quizId;
+  editingQuestionId = null;
+  qFormState = freshQFormState();
+  setMsg(els.editorRenameMsg, '');
+  setMsg(els.categoryMsg, '');
+  setMsg(els.qFormMsg, '');
+  els.editor.classList.add('open');
+  els.content.classList.add('editor-open');
+  els.editorTitle.textContent = 'Loading…';
+  els.editorMeta.textContent = '';
+  els.editorRenameInput.value = '';
+  els.categoryList.innerHTML = '';
+  els.questionList.innerHTML = '';
+  await reloadEditingQuiz();
+  renderQForm();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function closeQuizEditor() {
+  editingQuizId = null;
+  editingQuiz = null;
+  editingQuestionId = null;
+  qFormState = freshQFormState();
+  els.editor.classList.remove('open');
+  els.content.classList.remove('editor-open');
+  loadQuizzes();
+}
+
+async function reloadEditingQuiz() {
+  try {
+    const { quiz } = await fetchJson(`${API}/quizzes/${editingQuizId}`);
+    editingQuiz = quiz;
+    els.editorTitle.textContent = quiz.name;
+    els.editorRenameInput.value = quiz.name;
+    const qCount = quiz.questions.length;
+    const cCount = (quiz.categories || []).length;
+    els.editorMeta.textContent =
+      `${qCount} question${qCount === 1 ? '' : 's'} · ${cCount} categor${cCount === 1 ? 'y' : 'ies'}`;
+
+    const cats = quiz.categories || [];
+    if (qFormState.categoryId != null
+        && !cats.some(c => c.id === qFormState.categoryId)) {
+      qFormState.categoryId = null;
+    }
+    renderCategories();
+    renderQuestions();
+    renderCategoryOptions();
+  } catch (err) {
+    els.editorTitle.textContent = 'Error';
+    els.editorMeta.textContent = err.message;
+  }
+}
+
+els.editorBack.addEventListener('click', closeQuizEditor);
+
+els.editorRenameBtn.addEventListener('click', async () => {
+  setMsg(els.editorRenameMsg, '');
+  const name = els.editorRenameInput.value.trim();
+  if (!name) { setMsg(els.editorRenameMsg, 'Name is required.', 'error'); return; }
+  if (editingQuiz && name === editingQuiz.name) return;
+  try {
+    await fetchJson(`${API}/quizzes/${editingQuizId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    });
+    setMsg(els.editorRenameMsg, 'Name updated.', 'success');
+    await reloadEditingQuiz();
+  } catch (err) {
+    setMsg(els.editorRenameMsg, err.message, 'error');
+  }
+});
+
+// ── Categories ─────────────────────────────────────────
+
+function renderCategories() {
+  els.categoryList.innerHTML = '';
+  const cats = editingQuiz.categories || [];
+  if (!cats.length) {
+    const empty = document.createElement('li');
+    empty.className = 'cat-empty';
+    empty.textContent = 'No categories yet. Add one to group your questions.';
+    els.categoryList.appendChild(empty);
+    return;
+  }
+  cats.forEach((c, i) => {
+    const li = document.createElement('li');
+    li.className = 'category-row';
+    const isFirst = i === 0;
+    const isLast = i === cats.length - 1;
+    li.innerHTML = `
+      <span class="cat-name"></span>
+      <button class="icon-btn" data-act="up" title="Move up" ${isFirst ? 'disabled' : ''}>&uarr;</button>
+      <button class="icon-btn" data-act="down" title="Move down" ${isLast ? 'disabled' : ''}>&darr;</button>
+      <button class="icon-btn" data-act="rename" title="Rename">&#9998;</button>
+      <button class="icon-btn" data-act="delete" title="Delete">&times;</button>
+    `;
+    li.querySelector('.cat-name').textContent = c.name;
+    li.querySelector('[data-act="up"]').addEventListener('click', () => moveCategory(c.id, -1));
+    li.querySelector('[data-act="down"]').addEventListener('click', () => moveCategory(c.id, 1));
+    li.querySelector('[data-act="rename"]').addEventListener('click', () => startRenameCategory(li, c));
+    li.querySelector('[data-act="delete"]').addEventListener('click', () => deleteCategory(c));
+    els.categoryList.appendChild(li);
+  });
+}
+
+function startRenameCategory(li, cat) {
+  const nameEl = li.querySelector('.cat-name');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 60;
+  input.className = 'cat-name-input';
+  input.value = cat.name;
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const commit = async () => {
+    const newName = input.value.trim();
+    if (!newName || newName === cat.name) { renderCategories(); return; }
+    try {
+      await fetchJson(`${API}/quizzes/${editingQuizId}/categories/${cat.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: newName }),
+      });
+      await reloadEditingQuiz();
+    } catch (err) {
+      setMsg(els.categoryMsg, err.message, 'error');
+      renderCategories();
+    }
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { renderCategories(); }
+  });
+}
+
+async function deleteCategory(cat) {
+  if (!confirm(`Delete category "${cat.name}"? Questions in it will become uncategorized.`)) return;
+  try {
+    await fetchJson(`${API}/quizzes/${editingQuizId}/categories/${cat.id}`, { method: 'DELETE' });
+    await reloadEditingQuiz();
+  } catch (err) {
+    setMsg(els.categoryMsg, err.message, 'error');
+  }
+}
+
+async function moveCategory(cId, delta) {
+  const cats = editingQuiz.categories || [];
+  const ids = cats.map(c => c.id);
+  const i = ids.indexOf(cId);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  try {
+    await fetchJson(`${API}/quizzes/${editingQuizId}/categories/reorder`, {
+      method: 'PATCH',
+      body: JSON.stringify({ order: ids }),
+    });
+    await reloadEditingQuiz();
+  } catch (err) {
+    setMsg(els.categoryMsg, err.message, 'error');
+  }
+}
+
+els.newCategoryBtn.addEventListener('click', async () => {
+  setMsg(els.categoryMsg, '');
+  const name = els.newCategoryName.value.trim();
+  if (!name) { setMsg(els.categoryMsg, 'Enter a category name.', 'error'); return; }
+  try {
+    await fetchJson(`${API}/quizzes/${editingQuizId}/categories`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+    els.newCategoryName.value = '';
+    await reloadEditingQuiz();
+  } catch (err) {
+    setMsg(els.categoryMsg, err.message, 'error');
+  }
+});
+
+els.newCategoryName.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); els.newCategoryBtn.click(); }
+});
+
+function renderCategoryOptions() {
+  els.qCategory.innerHTML = '';
+  const cats = editingQuiz.categories || [];
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = 'Uncategorized';
+  els.qCategory.appendChild(none);
+  for (const c of cats) {
+    const opt = document.createElement('option');
+    opt.value = String(c.id);
+    opt.textContent = c.name;
+    els.qCategory.appendChild(opt);
+  }
+  els.qCategory.value = qFormState.categoryId == null ? '' : String(qFormState.categoryId);
+}
+
+// ── Questions ──────────────────────────────────────────
+
+function renderQuestions() {
+  els.questionList.innerHTML = '';
+  if (!editingQuiz.questions.length) {
+    els.questionList.innerHTML = '<li class="empty">No questions yet. Add one below.</li>';
+    return;
+  }
+
+  const cats = editingQuiz.categories || [];
+  const groups = new Map();
+  for (const c of cats) groups.set(c.id, []);
+  groups.set(null, []);
+  for (const q of editingQuiz.questions) {
+    const key = q.categoryId ?? null;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(q);
+  }
+
+  const orderedKeys = [...cats.map(c => c.id), null];
+  let displayIndex = 0;
+  for (const key of orderedKeys) {
+    const items = groups.get(key) || [];
+    if (!items.length) continue;
+    const head = document.createElement('div');
+    head.className = 'question-group-head';
+    head.textContent = key == null
+      ? 'Uncategorized'
+      : (cats.find(c => c.id === key)?.name || 'Category');
+    els.questionList.appendChild(head);
+
+    items.forEach((q, idxInGroup) => {
+      displayIndex++;
+      const li = document.createElement('li');
+      li.className = 'question-card';
+
+      const answerSummary = q.type === 'free'
+        ? `Accepts: ${q.correctAnswers.join(' / ')}`
+        : q.options
+          .map((o, idx) => `${q.correctAnswers.includes(idx) ? '✓' : '·'} ${o}`)
+          .join(' · ');
+
+      const isFirst = idxInGroup === 0;
+      const isLast = idxInGroup === items.length - 1;
+
+      li.innerHTML = `
+        <div class="question-head">
+          <span class="question-pos">${displayIndex}</span>
+          <span class="question-type-tag">${q.type}</span>
+        </div>
+        <div class="question-prompt"></div>
+        <div class="question-answers"></div>
+        <div class="question-actions">
+          <button class="btn btn-secondary btn-small" data-act="up" ${isFirst ? 'disabled' : ''}>&uarr;</button>
+          <button class="btn btn-secondary btn-small" data-act="down" ${isLast ? 'disabled' : ''}>&darr;</button>
+          <button class="btn btn-secondary btn-small" data-act="edit">Edit</button>
+          <button class="btn btn-danger btn-small" data-act="delete">Delete</button>
+        </div>
+      `;
+      li.querySelector('.question-prompt').textContent = q.prompt;
+      li.querySelector('.question-answers').textContent = answerSummary;
+      li.querySelector('[data-act="up"]').addEventListener('click', () => moveQuestion(q.id, -1));
+      li.querySelector('[data-act="down"]').addEventListener('click', () => moveQuestion(q.id, 1));
+      li.querySelector('[data-act="edit"]').addEventListener('click', () => startEditQuestion(q));
+      li.querySelector('[data-act="delete"]').addEventListener('click', async () => {
+        if (!confirm('Delete this question?')) return;
+        try {
+          await fetchJson(`${API}/quizzes/${editingQuizId}/questions/${q.id}`, { method: 'DELETE' });
+          await reloadEditingQuiz();
+        } catch (err) {
+          setMsg(els.qFormMsg, err.message, 'error');
+        }
+      });
+      els.questionList.appendChild(li);
+    });
+  }
+}
+
+async function moveQuestion(qId, delta) {
+  const all = editingQuiz.questions;
+  const i = all.findIndex(q => q.id === qId);
+  if (i < 0) return;
+
+  const cat = all[i].categoryId ?? null;
+  let j = i + delta;
+  while (j >= 0 && j < all.length && (all[j].categoryId ?? null) !== cat) {
+    j += delta;
+  }
+  if (j < 0 || j >= all.length) return;
+
+  const ids = all.map(q => q.id);
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  try {
+    await fetchJson(`${API}/quizzes/${editingQuizId}/questions/reorder`, {
+      method: 'PATCH',
+      body: JSON.stringify({ order: ids }),
+    });
+    await reloadEditingQuiz();
+  } catch (err) {
+    setMsg(els.qFormMsg, err.message, 'error');
+  }
+}
+
+function startEditQuestion(q) {
+  editingQuestionId = q.id;
+  qFormState = {
+    type: q.type,
+    prompt: q.prompt,
+    categoryId: q.categoryId ?? null,
+    freeAnswers: q.type === 'free' ? q.correctAnswers.join('\n') : '',
+    options: q.type === 'free' ? ['', ''] : [...q.options],
+    correctAnswers: q.type === 'free' ? [] : [...q.correctAnswers],
+  };
+  setMsg(els.qFormMsg, '');
+  renderQForm();
+  els.qFormHead.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  els.qPrompt.focus();
+}
+
+function resetQForm() {
+  editingQuestionId = null;
+  qFormState = freshQFormState();
+  setMsg(els.qFormMsg, '');
+  renderQForm();
+}
+
+function renderQForm() {
+  els.qPrompt.value = qFormState.prompt;
+  els.qType.value = qFormState.type;
+  els.qFreeAnswers.value = qFormState.freeAnswers;
+  if (els.qCategory.options.length) {
+    els.qCategory.value = qFormState.categoryId == null ? '' : String(qFormState.categoryId);
+  }
+  const isFree = qFormState.type === 'free';
+  els.qFreeArea.style.display = isFree ? '' : 'none';
+  els.qChoiceArea.style.display = isFree ? 'none' : '';
+  if (!isFree) renderOptions();
+  els.qFormHead.textContent = editingQuestionId ? 'Edit Question' : 'Add Question';
+  els.qSaveBtn.textContent = editingQuestionId ? 'Save Changes' : 'Add Question';
+  els.qCancelBtn.style.display = editingQuestionId ? '' : 'none';
+}
+
+function renderOptions() {
+  els.qOptions.innerHTML = '';
+  qFormState.options.forEach((opt, idx) => {
+    const row = document.createElement('div');
+    row.className = 'option-row';
+    const inputType = qFormState.type === 'multiple' ? 'checkbox' : 'radio';
+    const checked = qFormState.correctAnswers.includes(idx);
+    row.innerHTML = `
+      <input type="${inputType}" name="q-correct" ${checked ? 'checked' : ''}>
+      <input type="text" class="input-field" placeholder="Option ${idx + 1}">
+      <button type="button" class="icon-btn" title="Remove">&times;</button>
+    `;
+    const [check, text, remove] = row.children;
+    text.value = opt;
+    const currentIdx = () => [...els.qOptions.children].indexOf(row);
+    text.addEventListener('input', () => { qFormState.options[currentIdx()] = text.value; });
+    check.addEventListener('change', () => {
+      const i = currentIdx();
+      if (qFormState.type === 'single') {
+        qFormState.correctAnswers = [i];
+      } else {
+        const set = new Set(qFormState.correctAnswers);
+        if (check.checked) set.add(i); else set.delete(i);
+        qFormState.correctAnswers = [...set].sort((a, b) => a - b);
+      }
+      if (qFormState.type === 'single') renderOptions();
+    });
+    remove.addEventListener('click', () => {
+      if (qFormState.options.length <= 2) return;
+      const i = currentIdx();
+      qFormState.options.splice(i, 1);
+      qFormState.correctAnswers = qFormState.correctAnswers
+        .filter(k => k !== i)
+        .map(k => k > i ? k - 1 : k);
+      renderOptions();
+    });
+    els.qOptions.appendChild(row);
+  });
+}
+
+els.qPrompt.addEventListener('input', (e) => { qFormState.prompt = e.target.value; });
+els.qType.addEventListener('change', (e) => {
+  qFormState.type = e.target.value;
+  if (qFormState.type === 'single') {
+    qFormState.correctAnswers = qFormState.correctAnswers.slice(0, 1);
+  }
+  renderQForm();
+});
+els.qCategory.addEventListener('change', (e) => {
+  const v = e.target.value;
+  qFormState.categoryId = v === '' ? null : Number(v);
+});
+els.qFreeAnswers.addEventListener('input', (e) => { qFormState.freeAnswers = e.target.value; });
+els.qAddOption.addEventListener('click', () => {
+  if (qFormState.options.length >= 10) return;
+  qFormState.options.push('');
+  renderOptions();
+});
+els.qCancelBtn.addEventListener('click', resetQForm);
+
+els.qSaveBtn.addEventListener('click', async () => {
+  setMsg(els.qFormMsg, '');
+  const payload = {
+    prompt: qFormState.prompt,
+    type: qFormState.type,
+    categoryId: qFormState.categoryId,
+  };
+  if (qFormState.type === 'free') {
+    payload.correctAnswers = qFormState.freeAnswers
+      .split('\n').map(s => s.trim()).filter(Boolean);
+  } else {
+    payload.options = qFormState.options.map(o => o.trim());
+    payload.correctAnswers = qFormState.correctAnswers;
+  }
+  try {
+    if (editingQuestionId) {
+      await fetchJson(`${API}/quizzes/${editingQuizId}/questions/${editingQuestionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await fetchJson(`${API}/quizzes/${editingQuizId}/questions`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    }
+    resetQForm();
+    await reloadEditingQuiz();
+  } catch (err) {
+    setMsg(els.qFormMsg, err.message, 'error');
   }
 });
 

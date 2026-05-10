@@ -16,6 +16,18 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// True when the current session belongs to an active admin user. Cached on
+// the request so admin-overridden routes only hit the DB once per request.
+function isAdminSession(req) {
+  if (!req.session?.userId) return false;
+  if (req._isAdminCache !== undefined) return req._isAdminCache;
+  const u = db.prepare('SELECT isAdmin, disabledAt FROM users WHERE id = ?')
+    .get(req.session.userId);
+  const isAdmin = !!u && !u.disabledAt && !!u.isAdmin;
+  req._isAdminCache = isAdmin;
+  return isAdmin;
+}
+
 function loadQuestionRow(row) {
   return {
     id: row.id,
@@ -38,12 +50,15 @@ function loadCategoryRow(row) {
   };
 }
 
-function getQuiz(quizId, userId) {
+// Look up a quiz and enforce access. Admins bypass the owner check so they
+// can manage any quiz from the admin console.
+function getQuiz(quizId, req) {
   const quiz = db.prepare(
     'SELECT id, ownerUserId, name, archivedAt, createdAt FROM quizzes WHERE id = ?'
   ).get(quizId);
   if (!quiz) return null;
-  if (userId != null && quiz.ownerUserId !== userId) return 'forbidden';
+  if (isAdminSession(req)) return quiz;
+  if (quiz.ownerUserId !== req.session.userId) return 'forbidden';
   return quiz;
 }
 
@@ -173,7 +188,7 @@ router.post('/', requireAuth, (req, res) => {
 // Get one quiz with its questions
 router.get('/:id', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
   res.json({ quiz: loadQuizWithQuestions(quizId) });
@@ -182,7 +197,7 @@ router.get('/:id', requireAuth, (req, res) => {
 // Rename a quiz
 router.patch('/:id', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
   const name = (req.body?.name || '').trim();
@@ -197,7 +212,7 @@ router.patch('/:id', requireAuth, (req, res) => {
 // Delete a quiz (cascades questions)
 router.delete('/:id', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
   db.prepare('DELETE FROM quizzes WHERE id = ?').run(quizId);
@@ -225,7 +240,7 @@ function resolveQuestionCategoryId(quizId, body) {
 // List categories for a quiz
 router.get('/:id/categories', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
 
@@ -238,7 +253,7 @@ router.get('/:id/categories', requireAuth, (req, res) => {
 // Create a category
 router.post('/:id/categories', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
 
@@ -266,7 +281,7 @@ router.post('/:id/categories', requireAuth, (req, res) => {
 // the /:cid routes so "reorder" is not parsed as a category id.
 router.patch('/:id/categories/reorder', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
 
@@ -298,7 +313,7 @@ router.patch('/:id/categories/reorder', requireAuth, (req, res) => {
 router.patch('/:id/categories/:cid', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
   const cId = Number(req.params.cid);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
 
@@ -325,7 +340,7 @@ router.patch('/:id/categories/:cid', requireAuth, (req, res) => {
 router.delete('/:id/categories/:cid', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
   const cId = Number(req.params.cid);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
 
@@ -343,7 +358,7 @@ router.delete('/:id/categories/:cid', requireAuth, (req, res) => {
 // Add a question to a quiz
 router.post('/:id/questions', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
 
@@ -382,7 +397,7 @@ router.post('/:id/questions', requireAuth, (req, res) => {
 // get parsed as a question id.
 router.patch('/:id/questions/reorder', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
 
@@ -414,7 +429,7 @@ router.patch('/:id/questions/reorder', requireAuth, (req, res) => {
 router.patch('/:id/questions/:qid', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
   const qId = Number(req.params.qid);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
 
@@ -452,7 +467,7 @@ router.patch('/:id/questions/:qid', requireAuth, (req, res) => {
 router.delete('/:id/questions/:qid', requireAuth, (req, res) => {
   const quizId = Number(req.params.id);
   const qId = Number(req.params.qid);
-  const quiz = getQuiz(quizId, req.session.userId);
+  const quiz = getQuiz(quizId, req);
   if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
   if (quiz === 'forbidden') return res.status(403).json({ error: 'Not your quiz' });
 
