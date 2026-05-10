@@ -83,10 +83,12 @@ function renderUsers(users) {
   els.list.innerHTML = users.map(u => {
     const isMe = u.id === currentUser.id;
     const disabled = !!u.disabledAt;
+    const archived = !!u.archivedAt;
     const badges = [
       isMe ? '<span class="badge badge-me">You</span>' : '',
       u.isAdmin ? '<span class="badge badge-admin">Admin</span>' : '',
       disabled ? '<span class="badge badge-disabled">Disabled</span>' : '',
+      archived ? '<span class="badge badge-disabled">Archived</span>' : '',
     ].filter(Boolean).join(' ');
 
     const actions = [];
@@ -98,10 +100,15 @@ function renderUsers(users) {
       } else {
         actions.push(`<button class="btn btn-danger btn-small" data-act="disable" data-id="${u.id}">Disable</button>`);
       }
+      if (archived) {
+        actions.push(`<button class="btn btn-success btn-small" data-act="unarchive" data-id="${u.id}">Unarchive</button>`);
+      } else {
+        actions.push(`<button class="btn btn-secondary btn-small" data-act="archive" data-id="${u.id}">Archive</button>`);
+      }
     }
 
     return `
-      <li class="user-row ${disabled ? 'disabled' : ''}" data-id="${u.id}">
+      <li class="user-row ${disabled || archived ? 'disabled' : ''}" data-id="${u.id}">
         <div class="user-head">
           <span class="user-name">${escapeHtml(u.displayName)}</span>
           <span class="user-email">${escapeHtml(u.email)}</span>
@@ -112,6 +119,7 @@ function renderUsers(users) {
           Streak: ${u.currentStreak ?? 0} (best ${u.bestStreak ?? 0}) ·
           Joined ${fmtDate(u.createdAt)}
           ${disabled ? ` · Disabled ${fmtDate(u.disabledAt)}` : ''}
+          ${archived ? ` · Archived ${fmtDate(u.archivedAt)}` : ''}
         </div>
         <div class="user-actions">${actions.join('')}</div>
         <form class="pwd-form" data-pwd-form="${u.id}">
@@ -408,6 +416,11 @@ els.list.addEventListener('click', async (e) => {
       await fetchJson(`${API}/admin/users/${id}/disable`, { method: 'POST' });
     } else if (act === 'enable') {
       await fetchJson(`${API}/admin/users/${id}/enable`, { method: 'POST' });
+    } else if (act === 'archive') {
+      if (!confirm('Archive this user? They will not be able to log in and will be marked as archived.')) return;
+      await fetchJson(`${API}/admin/users/${id}/archive`, { method: 'POST' });
+    } else if (act === 'unarchive') {
+      await fetchJson(`${API}/admin/users/${id}/unarchive`, { method: 'POST' });
     } else if (act === 'admin') {
       const isAdmin = btn.dataset.val === '1';
       const verb = isAdmin ? 'grant admin to' : 'remove admin from';

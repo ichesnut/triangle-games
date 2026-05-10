@@ -70,6 +70,13 @@ test('GET /users 403 when caller is disabled (even if admin)', async () => {
   assert.equal(res.status, 403);
 });
 
+test('GET /users 403 when caller is archived (even if admin)', async () => {
+  db.prepare("UPDATE users SET archivedAt = datetime('now') WHERE id = ?").run(adminId);
+  asAdmin();
+  const res = await request('GET', '/api/admin/users');
+  assert.equal(res.status, 403);
+});
+
 test('GET /users 403 when session.userId points to deleted user', async () => {
   asAdmin();
   db.prepare('DELETE FROM users WHERE id = ?').run(adminId);
@@ -86,8 +93,20 @@ test('GET /users returns all users with isAdmin booleans', async () => {
   assert.equal(res.body.users.length, 2);
   const admin = res.body.users.find(u => u.email === 'admin@x.io');
   assert.equal(admin.isAdmin, true);
+  assert.equal(admin.archivedAt, null);
   const user = res.body.users.find(u => u.email === 'user@x.io');
   assert.equal(user.isAdmin, false);
+  assert.equal(user.archivedAt, null);
+});
+
+test('GET /users includes archived users with archivedAt populated', async () => {
+  db.prepare("UPDATE users SET archivedAt = datetime('now') WHERE id = ?").run(userId);
+  asAdmin();
+  const res = await request('GET', '/api/admin/users');
+  assert.equal(res.status, 200);
+  const archived = res.body.users.find(u => u.id === userId);
+  assert.ok(archived);
+  assert.ok(archived.archivedAt);
 });
 
 // ── POST /users ────────────────────────────────────────
@@ -219,6 +238,96 @@ test('POST /users/:id/enable 404 unknown user', async () => {
   asAdmin();
   const res = await request('POST', '/api/admin/users/99999/enable');
   assert.equal(res.status, 404);
+});
+
+// ── POST /users/:id/archive ───────────────────────────
+
+test('POST /users/:id/archive sets archivedAt on a non-admin', async () => {
+  asAdmin();
+  const res = await request('POST', `/api/admin/users/${userId}/archive`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT archivedAt FROM users WHERE id = ?').get(userId);
+  assert.ok(row.archivedAt);
+});
+
+test('POST /users/:id/archive is idempotent and preserves original archive time', async () => {
+  db.prepare("UPDATE users SET archivedAt = '2026-01-01 00:00:00' WHERE id = ?").run(userId);
+  asAdmin();
+  const res = await request('POST', `/api/admin/users/${userId}/archive`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT archivedAt FROM users WHERE id = ?').get(userId);
+  assert.equal(row.archivedAt, '2026-01-01 00:00:00');
+});
+
+test('POST /users/:id/archive 400 cannot archive self', async () => {
+  asAdmin();
+  const res = await request('POST', `/api/admin/users/${adminId}/archive`);
+  assert.equal(res.status, 400);
+  const row = db.prepare('SELECT archivedAt FROM users WHERE id = ?').get(adminId);
+  assert.equal(row.archivedAt, null);
+});
+
+test('POST /users/:id/archive: archiving an admin works when other active admins exist', async () => {
+  const second = db.prepare(
+    'INSERT INTO users (email, passwordHash, displayName, isAdmin) VALUES (?, ?, ?, 1)'
+  ).run('admin2@x.io', 'h', 'Admin2').lastInsertRowid;
+  asAdmin();
+  const res = await request('POST', `/api/admin/users/${second}/archive`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT archivedAt FROM users WHERE id = ?').get(second);
+  assert.ok(row.archivedAt);
+});
+
+test('POST /users/:id/archive 404 unknown user', async () => {
+  asAdmin();
+  const res = await request('POST', '/api/admin/users/99999/archive');
+  assert.equal(res.status, 404);
+});
+
+test('POST /users/:id/archive 400 non-numeric id', async () => {
+  asAdmin();
+  const res = await request('POST', '/api/admin/users/not-a-number/archive');
+  assert.equal(res.status, 400);
+});
+
+test('POST /users/:id/archive 403 for non-admin caller', async () => {
+  asUser();
+  const res = await request('POST', `/api/admin/users/${adminId}/archive`);
+  assert.equal(res.status, 403);
+});
+
+// ── POST /users/:id/unarchive ─────────────────────────
+
+test('POST /users/:id/unarchive clears archivedAt', async () => {
+  db.prepare("UPDATE users SET archivedAt = datetime('now') WHERE id = ?").run(userId);
+  asAdmin();
+  const res = await request('POST', `/api/admin/users/${userId}/unarchive`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT archivedAt FROM users WHERE id = ?').get(userId);
+  assert.equal(row.archivedAt, null);
+});
+
+test('POST /users/:id/unarchive does not touch disabledAt', async () => {
+  db.prepare("UPDATE users SET archivedAt = datetime('now'), disabledAt = datetime('now') WHERE id = ?")
+    .run(userId);
+  asAdmin();
+  const res = await request('POST', `/api/admin/users/${userId}/unarchive`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT archivedAt, disabledAt FROM users WHERE id = ?').get(userId);
+  assert.equal(row.archivedAt, null);
+  assert.ok(row.disabledAt);
+});
+
+test('POST /users/:id/unarchive 404 unknown user', async () => {
+  asAdmin();
+  const res = await request('POST', '/api/admin/users/99999/unarchive');
+  assert.equal(res.status, 404);
+});
+
+test('POST /users/:id/unarchive 400 non-numeric id', async () => {
+  asAdmin();
+  const res = await request('POST', '/api/admin/users/not-a-number/unarchive');
+  assert.equal(res.status, 400);
 });
 
 // ── POST /users/:id/admin ─────────────────────────────
