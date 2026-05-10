@@ -541,6 +541,90 @@ test('GET /games/:id 403 for non-admin caller', async () => {
   assert.equal(res.status, 403);
 });
 
+// ── Game archive (TRI-82) ─────────────────────────────
+
+test('GET /games returns archivedAt (null for live games)', async () => {
+  seedGame({ roomCode: 'LIVE' });
+  asAdmin();
+  const res = await request('GET', '/api/admin/games');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.games[0].archivedAt, null);
+});
+
+test('GET /games includes archived games with archivedAt populated', async () => {
+  const gameId = seedGame({ roomCode: 'ARCH' });
+  db.prepare("UPDATE math_battle_games SET archivedAt = datetime('now') WHERE id = ?").run(gameId);
+  asAdmin();
+  const res = await request('GET', '/api/admin/games');
+  assert.equal(res.status, 200);
+  const archived = res.body.games.find(g => g.id === gameId);
+  assert.ok(archived);
+  assert.ok(archived.archivedAt);
+});
+
+test('GET /games/:id returns archivedAt for archived games', async () => {
+  const gameId = seedGame({ roomCode: 'ARCD' });
+  db.prepare("UPDATE math_battle_games SET archivedAt = '2026-04-01 00:00:00' WHERE id = ?").run(gameId);
+  asAdmin();
+  const res = await request('GET', `/api/admin/games/${gameId}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.game.archivedAt, '2026-04-01 00:00:00');
+});
+
+test('POST /games/:id/archive sets archivedAt', async () => {
+  const gameId = seedGame({ roomCode: 'TARC' });
+  asAdmin();
+  const res = await request('POST', `/api/admin/games/${gameId}/archive`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT archivedAt FROM math_battle_games WHERE id = ?').get(gameId);
+  assert.ok(row.archivedAt);
+});
+
+test('POST /games/:id/archive is idempotent and preserves original archive time', async () => {
+  const gameId = seedGame({ roomCode: 'IDEM' });
+  db.prepare("UPDATE math_battle_games SET archivedAt = '2026-01-01 00:00:00' WHERE id = ?").run(gameId);
+  asAdmin();
+  const res = await request('POST', `/api/admin/games/${gameId}/archive`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT archivedAt FROM math_battle_games WHERE id = ?').get(gameId);
+  assert.equal(row.archivedAt, '2026-01-01 00:00:00');
+});
+
+test('POST /games/:id/archive 404 unknown game', async () => {
+  asAdmin();
+  const res = await request('POST', '/api/admin/games/99999/archive');
+  assert.equal(res.status, 404);
+});
+
+test('POST /games/:id/archive 400 non-numeric id', async () => {
+  asAdmin();
+  const res = await request('POST', '/api/admin/games/not-a-number/archive');
+  assert.equal(res.status, 400);
+});
+
+test('POST /games/:id/archive 403 for non-admin caller', async () => {
+  const gameId = seedGame({ roomCode: 'NOPE' });
+  asUser();
+  const res = await request('POST', `/api/admin/games/${gameId}/archive`);
+  assert.equal(res.status, 403);
+});
+
+test('POST /games/:id/unarchive clears archivedAt', async () => {
+  const gameId = seedGame({ roomCode: 'UNAR' });
+  db.prepare("UPDATE math_battle_games SET archivedAt = datetime('now') WHERE id = ?").run(gameId);
+  asAdmin();
+  const res = await request('POST', `/api/admin/games/${gameId}/unarchive`);
+  assert.equal(res.status, 200);
+  const row = db.prepare('SELECT archivedAt FROM math_battle_games WHERE id = ?').get(gameId);
+  assert.equal(row.archivedAt, null);
+});
+
+test('POST /games/:id/unarchive 404 unknown game', async () => {
+  asAdmin();
+  const res = await request('POST', '/api/admin/games/99999/unarchive');
+  assert.equal(res.status, 404);
+});
+
 test('GET /quizzes lists every quiz with owner info and question counts', async () => {
   // Owner-1 quiz with 2 questions, owner-2 quiz with 0.
   const q1 = db.prepare('INSERT INTO quizzes (ownerUserId, name) VALUES (?, ?)').run(adminId, 'Admin Q').lastInsertRowid;
