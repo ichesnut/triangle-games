@@ -9,9 +9,9 @@ function requireAdmin(req, res, next) {
   if (!req.session?.userId) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  const me = db.prepare('SELECT isAdmin, disabledAt FROM users WHERE id = ?')
+  const me = db.prepare('SELECT isAdmin, disabledAt, archivedAt FROM users WHERE id = ?')
     .get(req.session.userId);
-  if (!me || me.disabledAt || !me.isAdmin) {
+  if (!me || me.disabledAt || me.archivedAt || !me.isAdmin) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
@@ -27,15 +27,24 @@ function publicUser(row) {
     bestStreak: row.bestStreak,
     isAdmin: !!row.isAdmin,
     disabledAt: row.disabledAt,
+    archivedAt: row.archivedAt,
     createdAt: row.createdAt,
   };
 }
 
-// GET /users — list all users
+// "Active admin" for last-admin guards: an admin who can still log in and use
+// the admin console (not disabled, not archived).
+const COUNT_OTHER_ACTIVE_ADMINS = `
+  SELECT COUNT(*) AS n FROM users
+  WHERE isAdmin = 1 AND disabledAt IS NULL AND archivedAt IS NULL AND id != ?
+`;
+
+// GET /users — list all users (archived rows included so admins can manage
+// them; the UI surfaces them with an Archived badge, mirroring quizzes).
 router.get('/users', requireAdmin, (req, res) => {
   const users = db.prepare(`
     SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak,
-           isAdmin, disabledAt, createdAt
+           isAdmin, disabledAt, archivedAt, createdAt
     FROM users
     ORDER BY createdAt ASC
   `).all().map(publicUser);
@@ -65,7 +74,7 @@ router.post('/users', requireAdmin, (req, res) => {
 
   const user = db.prepare(`
     SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak,
-           isAdmin, disabledAt, createdAt
+           isAdmin, disabledAt, archivedAt, createdAt
     FROM users WHERE id = ?
   `).get(result.lastInsertRowid);
 
@@ -101,9 +110,7 @@ router.post('/users/:id/disable', requireAdmin, (req, res) => {
   if (!target) return res.status(404).json({ error: 'User not found' });
 
   if (target.isAdmin) {
-    const otherAdmins = db.prepare(
-      'SELECT COUNT(*) as n FROM users WHERE isAdmin = 1 AND disabledAt IS NULL AND id != ?'
-    ).get(userId).n;
+    const otherAdmins = db.prepare(COUNT_OTHER_ACTIVE_ADMINS).get(userId).n;
     if (otherAdmins === 0) {
       return res.status(400).json({ error: 'Cannot disable the last active admin' });
     }
@@ -123,10 +130,51 @@ router.post('/users/:id/enable', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /quizzes — list all quizzes across all owners
+// POST /users/:id/archive — hide from default admin views and revoke access
+// (login + session restore are blocked, mirroring `disable`). Idempotent.
+// Disable is the temporary lockout; archive is the soft-delete for users
+// who are gone for good but whose history we keep for referential integrity.
+router.post('/users/:id/archive', requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!Number.isInteger(userId)) return res.status(400).json({ error: 'Invalid user id' });
+  if (userId === req.session.userId) {
+    return res.status(400).json({ error: 'You cannot archive your own account' });
+  }
+
+  const target = db.prepare('SELECT id, isAdmin, archivedAt FROM users WHERE id = ?').get(userId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+
+  if (target.isAdmin && !target.archivedAt) {
+    const otherAdmins = db.prepare(COUNT_OTHER_ACTIVE_ADMINS).get(userId).n;
+    if (otherAdmins === 0) {
+      return res.status(400).json({ error: 'Cannot archive the last active admin' });
+    }
+  }
+
+  if (!target.archivedAt) {
+    db.prepare("UPDATE users SET archivedAt = datetime('now') WHERE id = ?").run(userId);
+  }
+  res.json({ ok: true });
+});
+
+// POST /users/:id/unarchive — restore an archived user. Idempotent. Does not
+// touch disabledAt — an archived-and-disabled user comes back disabled.
+router.post('/users/:id/unarchive', requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!Number.isInteger(userId)) return res.status(400).json({ error: 'Invalid user id' });
+
+  const target = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+
+  db.prepare('UPDATE users SET archivedAt = NULL WHERE id = ?').run(userId);
+  res.json({ ok: true });
+});
+
+// GET /quizzes — list all quizzes across all owners (archived rows included
+// so admins can manage them; the UI surfaces them with an archive badge).
 router.get('/quizzes', requireAdmin, (req, res) => {
   const rows = db.prepare(`
-    SELECT q.id, q.name, q.createdAt,
+    SELECT q.id, q.name, q.createdAt, q.archivedAt,
            q.ownerUserId,
            u.email AS ownerEmail,
            u.displayName AS ownerDisplayName,
@@ -136,6 +184,34 @@ router.get('/quizzes', requireAdmin, (req, res) => {
     ORDER BY q.createdAt DESC, q.id DESC
   `).all();
   res.json({ quizzes: rows });
+});
+
+// POST /quizzes/:id/archive — hide a quiz from owner lists and quiz picker
+// without deleting it (and its history). Idempotent: archiving an already
+// archived quiz is a no-op.
+router.post('/quizzes/:id/archive', requireAdmin, (req, res) => {
+  const quizId = parseInt(req.params.id, 10);
+  if (!Number.isInteger(quizId)) return res.status(400).json({ error: 'Invalid quiz id' });
+
+  const target = db.prepare('SELECT id, archivedAt FROM quizzes WHERE id = ?').get(quizId);
+  if (!target) return res.status(404).json({ error: 'Quiz not found' });
+
+  if (!target.archivedAt) {
+    db.prepare("UPDATE quizzes SET archivedAt = datetime('now') WHERE id = ?").run(quizId);
+  }
+  res.json({ ok: true });
+});
+
+// POST /quizzes/:id/unarchive — restore an archived quiz.
+router.post('/quizzes/:id/unarchive', requireAdmin, (req, res) => {
+  const quizId = parseInt(req.params.id, 10);
+  if (!Number.isInteger(quizId)) return res.status(400).json({ error: 'Invalid quiz id' });
+
+  const target = db.prepare('SELECT id FROM quizzes WHERE id = ?').get(quizId);
+  if (!target) return res.status(404).json({ error: 'Quiz not found' });
+
+  db.prepare('UPDATE quizzes SET archivedAt = NULL WHERE id = ?').run(quizId);
+  res.json({ ok: true });
 });
 
 // SQLite stores TEXT timestamps as `YYYY-MM-DD HH:MM:SS` in UTC. Parse them
@@ -243,9 +319,7 @@ router.post('/users/:id/admin', requireAdmin, (req, res) => {
   }
 
   if (!isAdmin && target.isAdmin) {
-    const otherAdmins = db.prepare(
-      'SELECT COUNT(*) as n FROM users WHERE isAdmin = 1 AND disabledAt IS NULL AND id != ?'
-    ).get(userId).n;
+    const otherAdmins = db.prepare(COUNT_OTHER_ACTIVE_ADMINS).get(userId).n;
     if (otherAdmins === 0) {
       return res.status(400).json({ error: 'Cannot remove admin from the last active admin' });
     }

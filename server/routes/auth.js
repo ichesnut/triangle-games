@@ -50,16 +50,17 @@ function shapeGuest(guest) {
 router.get('/me', (req, res) => {
   if (req.session.userId) {
     const user = db.prepare(
-      'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, isAdmin, disabledAt, createdAt FROM users WHERE id = ?'
+      'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, isAdmin, disabledAt, archivedAt, createdAt FROM users WHERE id = ?'
     ).get(req.session.userId);
 
-    if (user && !user.disabledAt) {
+    if (user && !user.disabledAt && !user.archivedAt) {
       return res.json({
         user: {
           ...user,
           isAdmin: !!user.isAdmin,
           isGuest: false,
           disabledAt: undefined,
+          archivedAt: undefined,
         },
       });
     }
@@ -155,6 +156,10 @@ router.post('/login', (req, res) => {
 
   if (user.disabledAt) {
     return res.status(403).json({ error: 'This account has been disabled' });
+  }
+
+  if (user.archivedAt) {
+    return res.status(403).json({ error: 'This account has been archived' });
   }
 
   if (req.session.guestId) {

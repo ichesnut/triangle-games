@@ -36,13 +36,14 @@ after(async () => {
 
 // Helper to create a user directly in the DB without going through register.
 function seedUser({
-  email, password = 'secret123', displayName = 'Tester', isAdmin = 0, disabledAt = null,
+  email, password = 'secret123', displayName = 'Tester', isAdmin = 0,
+  disabledAt = null, archivedAt = null,
 } = {}) {
   const passwordHash = bcrypt.hashSync(password, 4);
   const r = db.prepare(
-    'INSERT INTO users (email, passwordHash, displayName, isAdmin, disabledAt) VALUES (?, ?, ?, ?, ?)'
-  ).run(email, passwordHash, displayName, isAdmin, disabledAt);
-  return { id: r.lastInsertRowid, email, password, displayName, isAdmin, disabledAt };
+    'INSERT INTO users (email, passwordHash, displayName, isAdmin, disabledAt, archivedAt) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(email, passwordHash, displayName, isAdmin, disabledAt, archivedAt);
+  return { id: r.lastInsertRowid, email, password, displayName, isAdmin, disabledAt, archivedAt };
 }
 
 // ── GET /me ────────────────────────────────────────────
@@ -70,6 +71,15 @@ test('GET /me destroys session and returns null when user is disabled', async ()
   assert.equal(res.status, 200);
   assert.deepEqual(res.body, { user: null });
   // session.destroy stub clears the session.
+  assert.equal(session.userId, undefined);
+});
+
+test('GET /me destroys session and returns null when user is archived', async () => {
+  const u = seedUser({ email: 'archived@x.io', archivedAt: '2025-01-01 00:00:00' });
+  session.userId = u.id;
+  const res = await request('GET', '/api/auth/me');
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body, { user: null });
   assert.equal(session.userId, undefined);
 });
 
@@ -237,6 +247,15 @@ test('POST /login: 401 on bad password', async () => {
     email: 'badpass@x.io', password: 'wrong-password',
   });
   assert.equal(res.status, 401);
+});
+
+test('POST /login: 403 when account is archived', async () => {
+  seedUser({ email: 'archived@x.io', archivedAt: '2025-01-01 00:00:00' });
+  const res = await request('POST', '/api/auth/login', {
+    email: 'archived@x.io', password: 'secret123',
+  });
+  assert.equal(res.status, 403);
+  assert.match(res.body.error, /archived/i);
 });
 
 test('POST /login: 403 when account is disabled', async () => {

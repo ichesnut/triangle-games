@@ -87,9 +87,9 @@ test('db.js: enables WAL journal mode and foreign keys', async () => {
   assert.equal(fkOn, 1);
 });
 
-test('db.js: migrates users table — adds isAdmin and disabledAt', async () => {
+test('db.js: migrates users table — adds isAdmin, disabledAt, archivedAt', async () => {
   const dir = freshDir();
-  // Pre-seed a stripped-down users table missing isAdmin/disabledAt.
+  // Pre-seed a stripped-down users table missing all three columns.
   const pre = new Database(join(dir, 'chesnuts.db'));
   pre.exec(`
     CREATE TABLE users (
@@ -112,13 +112,15 @@ test('db.js: migrates users table — adds isAdmin and disabledAt', async () => 
   const cols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
   assert.ok(cols.includes('isAdmin'), 'isAdmin column added');
   assert.ok(cols.includes('disabledAt'), 'disabledAt column added');
+  assert.ok(cols.includes('archivedAt'), 'archivedAt column added');
 
   // Existing row is preserved and gets the default isAdmin=0.
-  const row = db.prepare('SELECT email, isAdmin, disabledAt FROM users WHERE email = ?')
+  const row = db.prepare('SELECT email, isAdmin, disabledAt, archivedAt FROM users WHERE email = ?')
     .get('a@b.c');
   assert.equal(row.email, 'a@b.c');
   assert.equal(row.isAdmin, 0);
   assert.equal(row.disabledAt, null);
+  assert.equal(row.archivedAt, null);
 });
 
 test('db.js: migrates guests table — adds mergedIntoUserId and mergedAt', async () => {

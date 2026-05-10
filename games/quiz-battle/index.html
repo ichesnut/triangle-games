@@ -327,6 +327,25 @@
     }
     .option-row .input-field { margin-bottom: 0; flex: 1; max-width: none; }
     .option-row input[type=checkbox], .option-row input[type=radio] { transform: scale(1.2); }
+    .option-row .drag-handle {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      min-width: var(--tap); min-height: var(--tap);
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 6px;
+      cursor: grab;
+      touch-action: none;
+      font-size: 1rem;
+      flex: 0 0 auto;
+      user-select: none;
+    }
+    .option-row .drag-handle:active { cursor: grabbing; }
+    .option-row.dragging {
+      opacity: 0.7;
+      background: var(--bg-card-2);
+      border-radius: 6px;
+    }
 
     /* Lobby */
     .room-code {

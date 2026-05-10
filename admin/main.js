@@ -83,10 +83,12 @@ function renderUsers(users) {
   els.list.innerHTML = users.map(u => {
     const isMe = u.id === currentUser.id;
     const disabled = !!u.disabledAt;
+    const archived = !!u.archivedAt;
     const badges = [
       isMe ? '<span class="badge badge-me">You</span>' : '',
       u.isAdmin ? '<span class="badge badge-admin">Admin</span>' : '',
       disabled ? '<span class="badge badge-disabled">Disabled</span>' : '',
+      archived ? '<span class="badge badge-disabled">Archived</span>' : '',
     ].filter(Boolean).join(' ');
 
     const actions = [];
@@ -98,10 +100,15 @@ function renderUsers(users) {
       } else {
         actions.push(`<button class="btn btn-danger btn-small" data-act="disable" data-id="${u.id}">Disable</button>`);
       }
+      if (archived) {
+        actions.push(`<button class="btn btn-success btn-small" data-act="unarchive" data-id="${u.id}">Unarchive</button>`);
+      } else {
+        actions.push(`<button class="btn btn-secondary btn-small" data-act="archive" data-id="${u.id}">Archive</button>`);
+      }
     }
 
     return `
-      <li class="user-row ${disabled ? 'disabled' : ''}" data-id="${u.id}">
+      <li class="user-row ${disabled || archived ? 'disabled' : ''}" data-id="${u.id}">
         <div class="user-head">
           <span class="user-name">${escapeHtml(u.displayName)}</span>
           <span class="user-email">${escapeHtml(u.email)}</span>
@@ -112,6 +119,7 @@ function renderUsers(users) {
           Streak: ${u.currentStreak ?? 0} (best ${u.bestStreak ?? 0}) ·
           Joined ${fmtDate(u.createdAt)}
           ${disabled ? ` · Disabled ${fmtDate(u.disabledAt)}` : ''}
+          ${archived ? ` · Archived ${fmtDate(u.archivedAt)}` : ''}
         </div>
         <div class="user-actions">${actions.join('')}</div>
         <form class="pwd-form" data-pwd-form="${u.id}">
@@ -144,16 +152,26 @@ function renderQuizzes(quizzes) {
     const owner = q.ownerDisplayName
       ? `${escapeHtml(q.ownerDisplayName)} <span class="user-email">&lt;${escapeHtml(q.ownerEmail || '')}&gt;</span>`
       : '<span class="user-email">(owner missing)</span>';
+    const archived = !!q.archivedAt;
+    const badge = archived
+      ? '<span class="badge badge-disabled">Archived</span>'
+      : '';
+    const action = archived
+      ? `<button class="btn btn-success btn-small" data-act="unarchive" data-id="${q.id}">Unarchive</button>`
+      : `<button class="btn btn-secondary btn-small" data-act="archive" data-id="${q.id}">Archive</button>`;
     return `
-      <li class="user-row" data-id="${q.id}">
+      <li class="user-row ${archived ? 'disabled' : ''}" data-id="${q.id}">
         <div class="user-head">
           <span class="user-name">${escapeHtml(q.name)}</span>
+          ${badge}
         </div>
         <div class="user-meta">
           ${q.questionCount} question${q.questionCount === 1 ? '' : 's'} ·
           owned by ${owner} ·
           Created ${fmtDate(q.createdAt)}
+          ${archived ? ` · Archived ${fmtDate(q.archivedAt)}` : ''}
         </div>
+        <div class="user-actions">${action}</div>
       </li>
     `;
   }).join('');
@@ -168,6 +186,27 @@ async function loadQuizzes() {
     setMsg(els.quizzesMsg, err.message, 'error');
   }
 }
+
+els.quizList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const id = parseInt(btn.dataset.id, 10);
+  const act = btn.dataset.act;
+  setMsg(els.quizzesMsg, '');
+  try {
+    if (act === 'archive') {
+      if (!confirm('Archive this quiz? Players will no longer see it.')) return;
+      await fetchJson(`${API}/admin/quizzes/${id}/archive`, { method: 'POST' });
+    } else if (act === 'unarchive') {
+      await fetchJson(`${API}/admin/quizzes/${id}/unarchive`, { method: 'POST' });
+    } else {
+      return;
+    }
+    await loadQuizzes();
+  } catch (err) {
+    setMsg(els.quizzesMsg, err.message, 'error');
+  }
+});
 
 function renderGames(games) {
   if (!games.length) {
@@ -377,6 +416,11 @@ els.list.addEventListener('click', async (e) => {
       await fetchJson(`${API}/admin/users/${id}/disable`, { method: 'POST' });
     } else if (act === 'enable') {
       await fetchJson(`${API}/admin/users/${id}/enable`, { method: 'POST' });
+    } else if (act === 'archive') {
+      if (!confirm('Archive this user? They will not be able to log in and will be marked as archived.')) return;
+      await fetchJson(`${API}/admin/users/${id}/archive`, { method: 'POST' });
+    } else if (act === 'unarchive') {
+      await fetchJson(`${API}/admin/users/${id}/unarchive`, { method: 'POST' });
     } else if (act === 'admin') {
       const isAdmin = btn.dataset.val === '1';
       const verb = isAdmin ? 'grant admin to' : 'remove admin from';

@@ -26,17 +26,21 @@ db.exec(`
     bestStreak INTEGER NOT NULL DEFAULT 0,
     isAdmin INTEGER NOT NULL DEFAULT 0,
     disabledAt TEXT,
+    archivedAt TEXT,
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )
 `);
 
-// Migration: add isAdmin and disabledAt to existing installs
+// Migration: add isAdmin, disabledAt, and archivedAt to existing installs
 const userCols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
 if (!userCols.includes('isAdmin')) {
   db.exec('ALTER TABLE users ADD COLUMN isAdmin INTEGER NOT NULL DEFAULT 0');
 }
 if (!userCols.includes('disabledAt')) {
   db.exec('ALTER TABLE users ADD COLUMN disabledAt TEXT');
+}
+if (!userCols.includes('archivedAt')) {
+  db.exec('ALTER TABLE users ADD COLUMN archivedAt TEXT');
 }
 
 // Guests: unauthenticated players identified by a browser-generated token.
@@ -123,9 +127,16 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ownerUserId INTEGER NOT NULL REFERENCES users(id),
     name TEXT NOT NULL,
+    archivedAt TEXT,
     createdAt TEXT NOT NULL DEFAULT (datetime('now'))
   )
 `);
+
+// Migration: add archivedAt to existing installs (TRI-81).
+const quizCols = db.prepare('PRAGMA table_info(quizzes)').all().map(c => c.name);
+if (!quizCols.includes('archivedAt')) {
+  db.exec('ALTER TABLE quizzes ADD COLUMN archivedAt TEXT');
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS quiz_categories (
