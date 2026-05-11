@@ -160,15 +160,26 @@ function normalizeQuestionPayload(body) {
 }
 
 // List quizzes for current user (with question counts). Archived quizzes are
-// hidden from owners — they can only be restored by an admin.
+// hidden — they can only be restored from the admin console.
+// Admins see every owner's non-archived quizzes here, mirroring the per-route
+// override in getQuiz(). This is what lets an admin who hasn't authored any
+// quizzes still pick one when hosting a game (TRI-102).
 router.get('/', requireAuth, (req, res) => {
-  const rows = db.prepare(`
-    SELECT q.id, q.name, q.createdAt,
-           (SELECT COUNT(*) FROM quiz_questions WHERE quizId = q.id) AS questionCount
-    FROM quizzes q
-    WHERE q.ownerUserId = ? AND q.archivedAt IS NULL
-    ORDER BY q.createdAt DESC, q.id DESC
-  `).all(req.session.userId);
+  const rows = isAdminSession(req)
+    ? db.prepare(`
+        SELECT q.id, q.name, q.createdAt,
+               (SELECT COUNT(*) FROM quiz_questions WHERE quizId = q.id) AS questionCount
+        FROM quizzes q
+        WHERE q.archivedAt IS NULL
+        ORDER BY q.createdAt DESC, q.id DESC
+      `).all()
+    : db.prepare(`
+        SELECT q.id, q.name, q.createdAt,
+               (SELECT COUNT(*) FROM quiz_questions WHERE quizId = q.id) AS questionCount
+        FROM quizzes q
+        WHERE q.ownerUserId = ? AND q.archivedAt IS NULL
+        ORDER BY q.createdAt DESC, q.id DESC
+      `).all(req.session.userId);
   res.json({ quizzes: rows });
 });
 
