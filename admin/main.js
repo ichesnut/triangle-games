@@ -116,6 +116,16 @@ function escapeHtml(s) {
   })[c]);
 }
 
+function renderWinner(winner) {
+  if (!winner) return '<span class="dim">—</span>';
+  const name = escapeHtml(winner.displayName || (winner.userId ? `User #${winner.userId}` : 'Guest'));
+  const tag = winner.source === 'guest' ? ' <span class="badge badge-disabled">Guest</span>' : '';
+  const rounds = winner.roundsWon != null
+    ? ` (${winner.roundsWon} round${winner.roundsWon === 1 ? '' : 's'})`
+    : '';
+  return `${name}${tag}${rounds}`;
+}
+
 function renderUsers(users) {
   if (!users.length) {
     els.list.innerHTML = '<li class="empty">No users yet.</li>';
@@ -289,9 +299,7 @@ function renderGames(games) {
   }
 
   els.gameList.innerHTML = games.map(g => {
-    const top = g.topScorer
-      ? `${escapeHtml(g.topScorer.displayName || `User #${g.topScorer.userId}`)} (${g.topScorer.roundsWon} won)`
-      : '—';
+    const winner = renderWinner(g.winner);
     const quiz = g.quizName ? escapeHtml(g.quizName) : '<span class="user-email">(quiz unknown)</span>';
     const archived = !!g.archivedAt;
     const badge = archived
@@ -312,7 +320,7 @@ function renderGames(games) {
           ${fmtDurationMs(g.durationMs)} ·
           ${g.totalRounds} round${g.totalRounds === 1 ? '' : 's'} ·
           ${g.playerCount} player${g.playerCount === 1 ? '' : 's'} ·
-          Top: ${top}
+          Winner: ${winner}
           ${archived ? ` · Archived ${fmtDate(g.archivedAt)}` : ''}
         </div>
         <div class="user-actions">
@@ -336,6 +344,7 @@ async function loadGames() {
 }
 
 function renderGameDetail(detail) {
+  const winnerLine = `<div class="detail-winner">Winner: ${renderWinner(detail.winner)}</div>`;
   const playersRows = detail.players.length
     ? detail.players.map(p => `
         <tr>
@@ -360,6 +369,7 @@ function renderGameDetail(detail) {
     : '<tr><td colspan="5" class="dim">No rounds recorded.</td></tr>';
 
   return `
+    ${winnerLine}
     <h3>Players</h3>
     <table class="detail-table">
       <thead><tr><th>Name</th><th>Email</th><th>Rounds Won</th><th>Chesnuts</th></tr></thead>

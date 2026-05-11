@@ -180,6 +180,10 @@ db.exec(`
     totalRounds INTEGER NOT NULL,
     startedAt TEXT,
     archivedAt TEXT,
+    winnerUserId INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    winnerGuestId INTEGER REFERENCES guests(id) ON DELETE SET NULL,
+    winnerDisplayName TEXT,
+    winnerRoundsWon INTEGER,
     finishedAt TEXT NOT NULL
   )
 `);
@@ -188,6 +192,9 @@ db.exec(`
 // existed; add them so the admin game view (TRI-80) can show which quiz played
 // and how long the game took. Existing rows keep NULL for both.
 // archivedAt (TRI-82) is added the same way for installs predating archive.
+// winner* (TRI-101) snapshots who won the game so the admin console can show
+// a winner even when the winner was an unregistered guest (or when only guests
+// played and no math_battle_players row exists).
 const gameCols = db.prepare('PRAGMA table_info(math_battle_games)').all().map(c => c.name);
 if (!gameCols.includes('quizId')) {
   db.exec('ALTER TABLE math_battle_games ADD COLUMN quizId INTEGER REFERENCES quizzes(id) ON DELETE SET NULL');
@@ -197,6 +204,18 @@ if (!gameCols.includes('startedAt')) {
 }
 if (!gameCols.includes('archivedAt')) {
   db.exec('ALTER TABLE math_battle_games ADD COLUMN archivedAt TEXT');
+}
+if (!gameCols.includes('winnerUserId')) {
+  db.exec('ALTER TABLE math_battle_games ADD COLUMN winnerUserId INTEGER REFERENCES users(id) ON DELETE SET NULL');
+}
+if (!gameCols.includes('winnerGuestId')) {
+  db.exec('ALTER TABLE math_battle_games ADD COLUMN winnerGuestId INTEGER REFERENCES guests(id) ON DELETE SET NULL');
+}
+if (!gameCols.includes('winnerDisplayName')) {
+  db.exec('ALTER TABLE math_battle_games ADD COLUMN winnerDisplayName TEXT');
+}
+if (!gameCols.includes('winnerRoundsWon')) {
+  db.exec('ALTER TABLE math_battle_games ADD COLUMN winnerRoundsWon INTEGER');
 }
 
 db.exec(`

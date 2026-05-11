@@ -229,6 +229,32 @@ function gameDurationMs(startedAt, finishedAt) {
   return f.getTime() - s.getTime();
 }
 
+// Build a winner descriptor from the math_battle_games row, falling back to
+// the top math_battle_players scorer for legacy rows recorded before TRI-101
+// added the winner snapshot. Returns null when nobody won a round (or for
+// legacy rows where no math_battle_players row exists either).
+function buildGameWinner(g, topScorer) {
+  if (g.winnerDisplayName) {
+    return {
+      source: g.winnerGuestId ? 'guest' : 'user',
+      userId: g.winnerUserId,
+      guestId: g.winnerGuestId,
+      displayName: g.winnerDisplayName,
+      roundsWon: g.winnerRoundsWon,
+    };
+  }
+  if (topScorer && topScorer.roundsWon > 0) {
+    return {
+      source: 'user',
+      userId: topScorer.userId,
+      guestId: null,
+      displayName: topScorer.displayName || null,
+      roundsWon: topScorer.roundsWon,
+    };
+  }
+  return null;
+}
+
 // GET /games — list every recorded Quiz Battle game with summary stats.
 // Archived rows are included so admins can manage them; the UI surfaces an
 // archived badge and an unarchive action.
@@ -236,6 +262,7 @@ router.get('/games', requireAdmin, (req, res) => {
   const games = db.prepare(`
     SELECT g.id, g.roomCode, g.quizId, g.totalRounds, g.startedAt, g.finishedAt,
            g.archivedAt,
+           g.winnerUserId, g.winnerGuestId, g.winnerDisplayName, g.winnerRoundsWon,
            q.name AS quizName,
            (SELECT COUNT(*) FROM math_battle_players WHERE gameId = g.id) AS playerCount
     FROM math_battle_games g
@@ -253,19 +280,22 @@ router.get('/games', requireAdmin, (req, res) => {
   `);
 
   res.json({
-    games: games.map(g => ({
-      id: g.id,
-      roomCode: g.roomCode,
-      quizId: g.quizId,
-      quizName: g.quizName,
-      totalRounds: g.totalRounds,
-      startedAt: g.startedAt,
-      finishedAt: g.finishedAt,
-      archivedAt: g.archivedAt,
-      durationMs: gameDurationMs(g.startedAt, g.finishedAt),
-      playerCount: g.playerCount,
-      topScorer: topStmt.get(g.id) || null,
-    })),
+    games: games.map(g => {
+      const topScorer = topStmt.get(g.id) || null;
+      return {
+        id: g.id,
+        roomCode: g.roomCode,
+        quizId: g.quizId,
+        quizName: g.quizName,
+        totalRounds: g.totalRounds,
+        startedAt: g.startedAt,
+        finishedAt: g.finishedAt,
+        archivedAt: g.archivedAt,
+        durationMs: gameDurationMs(g.startedAt, g.finishedAt),
+        playerCount: g.playerCount,
+        winner: buildGameWinner(g, topScorer),
+      };
+    }),
   });
 });
 
@@ -305,6 +335,7 @@ router.get('/games/:id', requireAdmin, (req, res) => {
   const game = db.prepare(`
     SELECT g.id, g.roomCode, g.quizId, g.totalRounds, g.startedAt, g.finishedAt,
            g.archivedAt,
+           g.winnerUserId, g.winnerGuestId, g.winnerDisplayName, g.winnerRoundsWon,
            q.name AS quizName
     FROM math_battle_games g
     LEFT JOIN quizzes q ON q.id = g.quizId
@@ -330,10 +361,15 @@ router.get('/games/:id', requireAdmin, (req, res) => {
     ORDER BY r.roundNumber ASC
   `).all(id);
 
+  const topScorer = players.length
+    ? { userId: players[0].userId, roundsWon: players[0].roundsWon, displayName: players[0].displayName }
+    : null;
+
   res.json({
     game: {
       ...game,
       durationMs: gameDurationMs(game.startedAt, game.finishedAt),
+      winner: buildGameWinner(game, topScorer),
       players,
       rounds,
     },
