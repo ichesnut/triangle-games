@@ -429,15 +429,28 @@ async function loadGames() {
 function renderGameDetail(detail) {
   const winnerLine = `<div class="detail-winner">Winner: ${renderWinner(detail.winner)}</div>`;
   const playersRows = detail.players.length
-    ? detail.players.map(p => `
-        <tr>
-          <td>${escapeHtml(p.displayName || `User #${p.userId}`)}</td>
-          <td class="dim">${escapeHtml(p.email || '')}</td>
-          <td class="num">${p.roundsWon}</td>
-          <td class="num">${p.chesnutsEarned}</td>
-        </tr>
-      `).join('')
-    : '<tr><td colspan="4" class="dim">No registered players recorded.</td></tr>';
+    ? detail.players.map(p => {
+        const isGuest = p.source === 'guest';
+        const fallback = isGuest
+          ? (p.guestId ? `Guest #${p.guestId}` : 'Guest')
+          : (p.userId ? `User #${p.userId}` : 'User');
+        const nameCell = `${escapeHtml(p.displayName || fallback)}${
+          isGuest ? ' <span class="badge badge-disabled">Guest</span>' : ''
+        }`;
+        const emailCell = isGuest
+          ? '<span class="dim">—</span>'
+          : escapeHtml(p.email || '');
+        const chesnutsCell = isGuest ? '<span class="dim">—</span>' : String(p.chesnutsEarned);
+        return `
+          <tr>
+            <td>${nameCell}</td>
+            <td class="dim">${emailCell}</td>
+            <td class="num">${p.roundsWon}</td>
+            <td class="num">${chesnutsCell}</td>
+          </tr>
+        `;
+      }).join('')
+    : '<tr><td colspan="4" class="dim">No players recorded.</td></tr>';
 
   const roundsRows = detail.rounds.length
     ? detail.rounds.map(r => `

@@ -44,6 +44,7 @@ before(async () => {
   // Seed host + guests + a multi-question quiz the host owns.
   db.exec('DELETE FROM math_battle_rounds');
   db.exec('DELETE FROM math_battle_players');
+  db.exec('DELETE FROM math_battle_guest_players');
   db.exec('DELETE FROM math_battle_games');
   db.exec('DELETE FROM quiz_questions');
   db.exec('DELETE FROM quiz_categories');
@@ -275,10 +276,20 @@ test('TRI-84: 10 concurrent users complete a full Quiz Battle without message lo
     const playerRows = db.prepare(
       'SELECT userId FROM math_battle_players WHERE gameId = ?'
     ).all(game.id);
-    // Only the registered host is persisted — guests have negative IDs and
-    // are intentionally excluded from math_battle_players (FK -> users).
+    // Only the registered host lives in math_battle_players (FK -> users).
+    // Guests are persisted to math_battle_guest_players instead (TRI-117).
     assert.equal(playerRows.length, 1);
     assert.equal(playerRows[0].userId, hostUserId);
+
+    const guestPlayerRows = db.prepare(
+      'SELECT guestId, displayName FROM math_battle_guest_players WHERE gameId = ? ORDER BY id ASC'
+    ).all(game.id);
+    assert.equal(guestPlayerRows.length, guestIds.length,
+      'every guest in the room should produce a math_battle_guest_players row');
+    assert.deepEqual(
+      guestPlayerRows.map(r => r.guestId).sort((a, b) => a - b),
+      [...guestIds].sort((a, b) => a - b),
+    );
 
     const roundRows = db.prepare(
       'SELECT roundNumber FROM math_battle_rounds WHERE gameId = ? ORDER BY roundNumber ASC'

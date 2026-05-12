@@ -114,17 +114,22 @@ const recordGame = db.transaction((roomCode, gameResult, players, gameMeta = {})
     winner?.roundsWon ?? null,
   );
 
-  const registeredPlayers = players.filter(p => isUserId(p.userId));
   const insertPlayer = db.prepare(
     'INSERT INTO math_battle_players (gameId, userId, roundsWon, chesnutsEarned) VALUES (?, ?, ?, ?)'
   );
-  for (const p of registeredPlayers) {
-    insertPlayer.run(
-      gameId,
-      p.userId,
-      gameResult.scores[p.userId] || 0,
-      gameResult.totalChesnuts[p.userId] || 0
-    );
+  const insertGuestPlayer = db.prepare(
+    'INSERT INTO math_battle_guest_players (gameId, guestId, displayName, roundsWon) VALUES (?, ?, ?, ?)'
+  );
+  for (const p of players) {
+    const score = gameResult.scores[p.userId] || 0;
+    if (isUserId(p.userId)) {
+      insertPlayer.run(gameId, p.userId, score, gameResult.totalChesnuts[p.userId] || 0);
+    } else {
+      // Guests don't earn chesnuts (no balance to credit), so we only record
+      // their roundsWon. displayName is snapshotted in case the guest row is
+      // later deleted (TRI-117).
+      insertGuestPlayer.run(gameId, -p.userId, p.displayName, score);
+    }
   }
 
   const insertRound = db.prepare(

@@ -28,6 +28,7 @@ beforeEach(() => {
   for (const k of Object.keys(session)) delete session[k];
   db.exec('DELETE FROM math_battle_rounds');
   db.exec('DELETE FROM math_battle_players');
+  db.exec('DELETE FROM math_battle_guest_players');
   db.exec('DELETE FROM math_battle_games');
   db.exec('DELETE FROM quiz_questions');
   db.exec('DELETE FROM quiz_categories');
@@ -390,6 +391,7 @@ function seedGame({
   winnerDisplayName = null,
   winnerRoundsWon = null,
   players = [],
+  guestPlayers = [],
   rounds = [],
 } = {}) {
   const insertGame = db.prepare(`
@@ -407,6 +409,13 @@ function seedGame({
     'INSERT INTO math_battle_players (gameId, userId, roundsWon, chesnutsEarned) VALUES (?, ?, ?, ?)'
   );
   for (const p of players) insertPlayer.run(gameId, p.userId, p.roundsWon, p.chesnutsEarned);
+
+  const insertGuestPlayer = db.prepare(
+    'INSERT INTO math_battle_guest_players (gameId, guestId, displayName, roundsWon) VALUES (?, ?, ?, ?)'
+  );
+  for (const p of guestPlayers) {
+    insertGuestPlayer.run(gameId, p.guestId ?? null, p.displayName, p.roundsWon);
+  }
 
   const insertRound = db.prepare(
     'INSERT INTO math_battle_rounds (gameId, roundNumber, challenge, correctAnswer, winnerId, timeTakenMs) VALUES (?, ?, ?, ?, ?, ?)'
@@ -620,6 +629,8 @@ test('GET /games/:id returns players, rounds, and winner', async () => {
   // Sorted by roundsWon desc, then by player row id asc — both have 1, so admin first.
   assert.equal(game.players[0].userId, adminId);
   assert.equal(game.players[0].email, 'admin@x.io');
+  assert.equal(game.players[0].source, 'user');
+  assert.equal(game.players[0].guestId, null);
   assert.equal(game.rounds.length, 2);
   assert.equal(game.rounds[0].winnerDisplayName, 'Admin');
   assert.equal(game.rounds[1].winnerId, null);
@@ -645,6 +656,93 @@ test('GET /games/:id returns guest winner with empty players list (all-guest gam
   assert.equal(res.body.game.winner.guestId, guestId);
   assert.equal(res.body.game.winner.displayName, 'Guest Champ');
   assert.equal(res.body.game.players.length, 0);
+});
+
+test('GET /games/:id merges registered + guest participants, sorted by roundsWon (TRI-117)', async () => {
+  const aliceId = seedGuest({ displayName: 'Alice' });
+  const bobId = seedGuest({ displayName: 'Bob' });
+  const gameId = seedGame({
+    roomCode: 'MIXD',
+    winnerGuestId: aliceId,
+    winnerDisplayName: 'Alice',
+    winnerRoundsWon: 3,
+    players: [
+      { userId: adminId, roundsWon: 2, chesnutsEarned: 6 },
+      { userId: userId, roundsWon: 0, chesnutsEarned: 0 },
+    ],
+    guestPlayers: [
+      { guestId: aliceId, displayName: 'Alice', roundsWon: 3 },
+      { guestId: bobId, displayName: 'Bob', roundsWon: 1 },
+    ],
+  });
+
+  asAdmin();
+  const res = await request('GET', `/api/admin/games/${gameId}`);
+  assert.equal(res.status, 200);
+  const players = res.body.game.players;
+  assert.equal(players.length, 4);
+
+  // Sort: roundsWon desc → Alice(3), admin(2), Bob(1), user(0).
+  assert.equal(players[0].source, 'guest');
+  assert.equal(players[0].guestId, aliceId);
+  assert.equal(players[0].displayName, 'Alice');
+  assert.equal(players[0].roundsWon, 3);
+  assert.equal(players[0].chesnutsEarned, 0);
+  assert.equal(players[0].email, null);
+
+  assert.equal(players[1].source, 'user');
+  assert.equal(players[1].userId, adminId);
+  assert.equal(players[1].roundsWon, 2);
+  assert.equal(players[1].chesnutsEarned, 6);
+  assert.equal(players[1].email, 'admin@x.io');
+
+  assert.equal(players[2].source, 'guest');
+  assert.equal(players[2].guestId, bobId);
+  assert.equal(players[2].roundsWon, 1);
+
+  assert.equal(players[3].source, 'user');
+  assert.equal(players[3].userId, userId);
+});
+
+test('GET /games/:id surfaces an all-guest roster when no registered players joined (TRI-117)', async () => {
+  const soloId = seedGuest({ displayName: 'Solo' });
+  const gameId = seedGame({
+    roomCode: 'GSTS',
+    winnerGuestId: soloId,
+    winnerDisplayName: 'Solo',
+    winnerRoundsWon: 2,
+    players: [],
+    guestPlayers: [
+      { guestId: soloId, displayName: 'Solo', roundsWon: 2 },
+      { guestId: null, displayName: 'Anon (deleted)', roundsWon: 0 },
+    ],
+  });
+
+  asAdmin();
+  const res = await request('GET', `/api/admin/games/${gameId}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.game.players.length, 2);
+  assert.equal(res.body.game.players[0].displayName, 'Solo');
+  // Even a guest whose row was deleted is still nameable via the snapshot.
+  assert.equal(res.body.game.players[1].displayName, 'Anon (deleted)');
+  assert.equal(res.body.game.players[1].guestId, null);
+});
+
+test('GET /games playerCount sums registered + guest participants (TRI-117)', async () => {
+  const aliceId = seedGuest({ displayName: 'Alice' });
+  const bobId = seedGuest({ displayName: 'Bob' });
+  seedGame({
+    roomCode: 'CNT1',
+    players: [{ userId: adminId, roundsWon: 1, chesnutsEarned: 3 }],
+    guestPlayers: [
+      { guestId: aliceId, displayName: 'Alice', roundsWon: 0 },
+      { guestId: bobId, displayName: 'Bob', roundsWon: 2 },
+    ],
+  });
+  asAdmin();
+  const res = await request('GET', '/api/admin/games');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.games[0].playerCount, 3);
 });
 
 test('GET /games/:id 404 for unknown game', async () => {
