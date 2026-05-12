@@ -14,7 +14,6 @@ import {
   resolveRound,
   nextRound,
   hasMoreQuestions,
-  voteFinish,
   finishGame,
   getRoomState,
 } from '../../../server/multiplayer/rooms.js';
@@ -427,22 +426,6 @@ test('nextRound: advances to next question and starts it; returns false at the e
 
   assert.equal(nextRound(room), false);
   assert.equal(room.questionIndex, 2); // unchanged
-  deleteRoom(room.code);
-});
-
-test('voteFinish: requires ceil(players/2) votes', () => {
-  // 3 players → ceil(3/2)=2.
-  const { room, players } = seededRoom(3, 1);
-  assert.equal(voteFinish(room, players[0].userId), false);
-  // Same vote twice: still 1 unique voter.
-  assert.equal(voteFinish(room, players[0].userId), false);
-  assert.equal(voteFinish(room, players[1].userId), true);
-  deleteRoom(room.code);
-});
-
-test('voteFinish: 1 player meets threshold immediately', () => {
-  const { room, players } = seededRoom(1, 1);
-  assert.equal(voteFinish(room, players[0].userId), true);
   deleteRoom(room.code);
 });
 

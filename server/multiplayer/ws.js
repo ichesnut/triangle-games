@@ -14,7 +14,7 @@ import {
   resolveRound,
   nextRound,
   hasMoreQuestions,
-  voteFinish,
+  listActiveRooms,
   finishGame,
   getRoomState,
 } from './rooms.js';
@@ -180,6 +180,62 @@ function endGameAndRecord(room, players = Array.from(room.players.values())) {
     console.error('Failed to record game:', err);
   }
 
+  return gameResult;
+}
+
+// Admin view of every in-memory room (lobby + playing). The admin console
+// shows these so an admin can step in and end a stuck game; the recorded
+// rows in math_battle_games only appear after finishGame() runs.
+export function snapshotActiveRooms() {
+  const out = [];
+  for (const room of listActiveRooms()) {
+    const players = [];
+    let hostDisplayName = null;
+    for (const [userId, p] of room.players) {
+      players.push({ userId, displayName: p.displayName });
+      if (userId === room.hostUserId) hostDisplayName = p.displayName;
+    }
+    out.push({
+      code: room.code,
+      state: room.state,
+      hostUserId: room.hostUserId,
+      hostDisplayName,
+      quiz: room.quiz
+        ? { id: room.quiz.id, name: room.quiz.name, questionCount: room.quiz.questions.length }
+        : null,
+      currentRound: room.currentRound,
+      players,
+      createdAt: room.createdAt,
+      startedAt: room.startedAt || null,
+    });
+  }
+  return out;
+}
+
+// Force-end a game from the admin console. Records the game like a normal
+// finish, broadcasts a `game_over` with `aborted: true, reason: 'ended_by_admin'`
+// to every connected player, then drops the room. Throws if the room is not
+// in the playing state.
+export function endActiveGameAsAdmin(code) {
+  const room = getRoom(code);
+  if (!room) {
+    const err = new Error('Room not found');
+    err.status = 404;
+    throw err;
+  }
+  if (room.state !== 'playing') {
+    const err = new Error('Game is not in progress');
+    err.status = 400;
+    throw err;
+  }
+  const gameResult = endGameAndRecord(room);
+  broadcast(room, {
+    type: 'game_over',
+    aborted: true,
+    reason: 'ended_by_admin',
+    ...gameResult,
+  }, null);
+  deleteRoom(room.code);
   return gameResult;
 }
 
@@ -383,23 +439,18 @@ export function attachWebSocketServer(httpServer, sessionParser) {
           break;
         }
 
-        case 'vote_finish': {
+        case 'end_game': {
           const room = getRoom(currentRoom);
           if (!room) { sendError(ws, 'Not in a room'); return; }
           if (room.state !== 'playing') { sendError(ws, 'No active game'); return; }
-
-          const shouldFinish = voteFinish(room, participantId);
-          if (shouldFinish) {
-            const gameResult = endGameAndRecord(room);
-            broadcast(room, { type: 'game_over', ...gameResult }, null);
-          } else {
-            broadcast(room, {
-              type: 'vote_update',
-              voterId: participantId,
-              voterName: displayName,
-              votesNeeded: Math.ceil(room.players.size / 2) - room.votesToFinish.size,
-            }, null);
+          if (room.hostUserId !== participantId) {
+            sendError(ws, 'Only the game creator can end the game');
+            return;
           }
+
+          const gameResult = endGameAndRecord(room);
+          broadcast(room, { type: 'game_over', ...gameResult }, null);
+          deleteRoom(room.code);
           break;
         }
 

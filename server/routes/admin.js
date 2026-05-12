@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import db from '../db.js';
+import { snapshotActiveRooms, endActiveGameAsAdmin } from '../multiplayer/ws.js';
 
 const router = Router();
 const SALT_ROUNDS = 12;
@@ -374,6 +375,29 @@ router.get('/games/:id', requireAdmin, (req, res) => {
       rounds,
     },
   });
+});
+
+// GET /active-rooms — list every in-memory Quiz Battle room (lobby + playing)
+// so admins can see games in progress and end them. Does NOT include rows
+// from math_battle_games — those are surfaced by GET /games.
+router.get('/active-rooms', requireAdmin, (req, res) => {
+  res.json({ rooms: snapshotActiveRooms() });
+});
+
+// POST /active-rooms/:code/end — force-end a game in progress. Records it
+// like a normal finish (streaks/chesnuts/history) and broadcasts a
+// `game_over` with reason `ended_by_admin` to every connected player.
+router.post('/active-rooms/:code/end', requireAdmin, (req, res) => {
+  const code = String(req.params.code || '').toUpperCase();
+  if (!/^[A-Z0-9]{4}$/.test(code)) {
+    return res.status(400).json({ error: 'Invalid room code' });
+  }
+  try {
+    endActiveGameAsAdmin(code);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || 'Failed to end game' });
+  }
 });
 
 // POST /users/:id/admin — set admin flag
