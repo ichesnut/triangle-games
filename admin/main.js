@@ -17,15 +17,12 @@ const els = {
   registerForm: document.getElementById('register-form'),
   registerMsg: document.getElementById('register-msg'),
   usersMsg: document.getElementById('users-msg'),
-  usersMeta: document.getElementById('users-section-meta'),
   quizList: document.getElementById('quiz-list'),
   quizzesMsg: document.getElementById('quizzes-msg'),
-  quizzesMeta: document.getElementById('quizzes-section-meta'),
   newQuizName: document.getElementById('new-quiz-name'),
   newQuizBtn: document.getElementById('new-quiz-btn'),
   gameList: document.getElementById('game-list'),
   gamesMsg: document.getElementById('games-msg'),
-  gamesMeta: document.getElementById('games-section-meta'),
   activeRoomList: document.getElementById('active-room-list'),
   activeRoomsMsg: document.getElementById('active-rooms-msg'),
   refreshActiveRoomsBtn: document.getElementById('refresh-active-rooms-btn'),
@@ -62,6 +59,21 @@ let editingQuizId = null;
 let editingQuiz = null;
 let editingQuestionId = null;
 let qFormState = freshQFormState();
+
+const tabState = { users: 'active', quizzes: 'active', games: 'active' };
+let usersData = [];
+let quizzesData = [];
+let gamesData = [];
+
+function updateTabUI(section, activeCount, archivedCount) {
+  const strip = document.querySelector(`.tab-strip[data-tab-section="${section}"]`);
+  if (!strip) return;
+  strip.querySelector('[data-tab-count="active"]').textContent = activeCount;
+  strip.querySelector('[data-tab-count="archived"]').textContent = archivedCount;
+  strip.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tabState[section]);
+  });
+}
 
 function freshQFormState() {
   return {
@@ -140,9 +152,9 @@ function renderWinner(winner) {
   return `${name}${tag}${rounds}`;
 }
 
-function renderUsers(users) {
+function renderUsers(users, emptyMsg = 'No users to show.') {
   if (!users.length) {
-    els.list.innerHTML = '<li class="empty">No users yet.</li>';
+    els.list.innerHTML = `<li class="empty">${escapeHtml(emptyMsg)}</li>`;
     return;
   }
 
@@ -174,7 +186,7 @@ function renderUsers(users) {
     }
 
     return `
-      <li class="user-row ${disabled || archived ? 'disabled' : ''}" data-id="${u.id}">
+      <li class="user-row ${disabled ? 'disabled' : ''}" data-id="${u.id}">
         <div class="user-head">
           <span class="user-name">${escapeHtml(u.displayName)}</span>
           <span class="user-email">${escapeHtml(u.email)}</span>
@@ -198,24 +210,30 @@ function renderUsers(users) {
   }).join('');
 }
 
+function renderUsersSection() {
+  const active = usersData.filter(u => !u.archivedAt);
+  const archived = usersData.filter(u => u.archivedAt);
+  updateTabUI('users', active.length, archived.length);
+  const visible = tabState.users === 'archived' ? archived : active;
+  const emptyMsg = tabState.users === 'archived' ? 'No archived users.' : 'No active users.';
+  renderUsers(visible, emptyMsg);
+}
+
 async function loadUsers() {
   setMsg(els.usersMsg, '');
   try {
     const { users } = await fetchJson(`${API}/admin/users`);
-    renderUsers(users);
-    const active = users.filter(u => !u.disabledAt && !u.archivedAt).length;
+    usersData = users;
+    renderUsersSection();
     setNavCount('users', users.length);
-    if (els.usersMeta) {
-      els.usersMeta.textContent = `${users.length} total · ${active} active`;
-    }
   } catch (err) {
     setMsg(els.usersMsg, err.message, 'error');
   }
 }
 
-function renderQuizzes(quizzes) {
+function renderQuizzes(quizzes, emptyMsg = 'No quizzes to show.') {
   if (!quizzes.length) {
-    els.quizList.innerHTML = '<li class="empty">No quizzes yet.</li>';
+    els.quizList.innerHTML = `<li class="empty">${escapeHtml(emptyMsg)}</li>`;
     return;
   }
 
@@ -233,7 +251,7 @@ function renderQuizzes(quizzes) {
     const editBtn = `<button class="btn btn-secondary btn-small" data-act="edit" data-id="${q.id}">Edit</button>`;
     const deleteBtn = `<button class="btn btn-danger btn-small" data-act="delete" data-id="${q.id}">Delete</button>`;
     return `
-      <li class="user-row ${archived ? 'disabled' : ''}" data-id="${q.id}">
+      <li class="user-row" data-id="${q.id}">
         <div class="user-head">
           <span class="user-name">${escapeHtml(q.name)}</span>
           ${badge}
@@ -250,16 +268,22 @@ function renderQuizzes(quizzes) {
   }).join('');
 }
 
+function renderQuizzesSection() {
+  const active = quizzesData.filter(q => !q.archivedAt);
+  const archived = quizzesData.filter(q => q.archivedAt);
+  updateTabUI('quizzes', active.length, archived.length);
+  const visible = tabState.quizzes === 'archived' ? archived : active;
+  const emptyMsg = tabState.quizzes === 'archived' ? 'No archived quizzes.' : 'No active quizzes.';
+  renderQuizzes(visible, emptyMsg);
+}
+
 async function loadQuizzes() {
   setMsg(els.quizzesMsg, '');
   try {
     const { quizzes } = await fetchJson(`${API}/admin/quizzes`);
-    renderQuizzes(quizzes);
-    const active = quizzes.filter(q => !q.archivedAt).length;
+    quizzesData = quizzes;
+    renderQuizzesSection();
     setNavCount('quizzes', quizzes.length);
-    if (els.quizzesMeta) {
-      els.quizzesMeta.textContent = `${quizzes.length} total · ${active} active`;
-    }
   } catch (err) {
     setMsg(els.quizzesMsg, err.message, 'error');
   }
@@ -316,9 +340,9 @@ els.newQuizName.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); els.newQuizBtn.click(); }
 });
 
-function renderGames(games) {
+function renderGames(games, emptyMsg = 'No games to show.') {
   if (!games.length) {
-    els.gameList.innerHTML = '<li class="empty">No games played yet.</li>';
+    els.gameList.innerHTML = `<li class="empty">${escapeHtml(emptyMsg)}</li>`;
     return;
   }
 
@@ -333,7 +357,7 @@ function renderGames(games) {
       ? `<button class="btn btn-success btn-small" data-act="unarchive-game" data-id="${g.id}">Unarchive</button>`
       : `<button class="btn btn-secondary btn-small" data-act="archive-game" data-id="${g.id}">Archive</button>`;
     return `
-      <li class="user-row ${archived ? 'disabled' : ''}" data-game-id="${g.id}">
+      <li class="user-row" data-game-id="${g.id}">
         <div class="user-head">
           <span class="user-name">${quiz}</span>
           <span class="user-email">Room ${escapeHtml(g.roomCode)}</span>
@@ -355,6 +379,15 @@ function renderGames(games) {
       </li>
     `;
   }).join('');
+}
+
+function renderGamesSection() {
+  const active = gamesData.filter(g => !g.archivedAt);
+  const archived = gamesData.filter(g => g.archivedAt);
+  updateTabUI('games', active.length, archived.length);
+  const visible = tabState.games === 'archived' ? archived : active;
+  const emptyMsg = tabState.games === 'archived' ? 'No archived games.' : 'No games played yet.';
+  renderGames(visible, emptyMsg);
 }
 
 function renderActiveRooms(rooms) {
@@ -415,12 +448,9 @@ async function loadGames() {
   setMsg(els.gamesMsg, '');
   try {
     const { games } = await fetchJson(`${API}/admin/games`);
-    renderGames(games);
-    const active = games.filter(g => !g.archivedAt).length;
+    gamesData = games;
+    renderGamesSection();
     setNavCount('games', games.length);
-    if (els.gamesMeta) {
-      els.gamesMeta.textContent = `${games.length} total · ${active} active`;
-    }
   } catch (err) {
     setMsg(els.gamesMsg, err.message, 'error');
   }
@@ -545,9 +575,26 @@ async function init() {
   els.appShell.style.display = 'flex';
 
   setupNavigation();
+  setupTabStrips();
   showSection(initialSectionFromHash());
 
   await Promise.all([loadUsers(), loadQuizzes(), loadGames(), loadActiveRooms()]);
+}
+
+function setupTabStrips() {
+  document.querySelectorAll('.tab-strip[data-tab-section]').forEach(strip => {
+    const section = strip.dataset.tabSection;
+    strip.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tab-btn[data-tab]');
+      if (!btn) return;
+      const tab = btn.dataset.tab;
+      if (tabState[section] === tab) return;
+      tabState[section] = tab;
+      if (section === 'users') renderUsersSection();
+      else if (section === 'quizzes') renderQuizzesSection();
+      else if (section === 'games') renderGamesSection();
+    });
+  });
 }
 
 // ── Navigation ────────────────────────────────────────

@@ -204,13 +204,54 @@
       font-weight: 800;
       color: var(--text);
     }
-    .section-head .section-meta {
-      font-size: 0.82rem;
-      color: var(--text-dim);
-    }
 
     .app-section { display: none; }
     .app-section.active { display: block; }
+
+    /* ── Active / Archived tab strip ─────────── */
+
+    .tab-strip {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 0.85rem;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 0 1rem;
+      min-height: 44px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.1s, color 0.1s, border-color 0.1s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      background: var(--bg-card-2);
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .tab-btn .tab-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.5rem;
+      padding: 0 0.45rem;
+      border-radius: 9999px;
+      background: var(--bg-card-2);
+      color: var(--text-dim);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .tab-btn.active .tab-count { background: var(--accent); color: #fff; }
 
     /* ── Mobile ─────────────────────────────── */
 
@@ -657,7 +698,6 @@
         <section class="app-section" data-section="users">
           <div class="section-head">
             <h2>Users</h2>
-            <span class="section-meta" id="users-section-meta"></span>
           </div>
 
           <div class="panel">
@@ -674,6 +714,11 @@
             <div id="register-msg" class="msg"></div>
           </div>
 
+          <div class="tab-strip" data-tab-section="users">
+            <button type="button" class="tab-btn active" data-tab="active">Active <span class="tab-count" data-tab-count="active">0</span></button>
+            <button type="button" class="tab-btn" data-tab="archived">Archived <span class="tab-count" data-tab-count="archived">0</span></button>
+          </div>
+
           <div class="panel">
             <h3 class="panel-head">All Users</h3>
             <ul class="user-list" id="user-list"></ul>
@@ -686,7 +731,6 @@
           <div class="quizzes-default">
             <div class="section-head">
               <h2>Quizzes</h2>
-              <span class="section-meta" id="quizzes-section-meta"></span>
             </div>
 
             <div class="panel" id="quizzes-panel">
@@ -696,6 +740,11 @@
                 <button type="button" class="btn btn-primary btn-small" id="new-quiz-btn">Create Quiz</button>
               </div>
               <div id="quizzes-msg" class="msg"></div>
+            </div>
+
+            <div class="tab-strip" data-tab-section="quizzes">
+              <button type="button" class="tab-btn active" data-tab="active">Active <span class="tab-count" data-tab-count="active">0</span></button>
+              <button type="button" class="tab-btn" data-tab="archived">Archived <span class="tab-count" data-tab-count="archived">0</span></button>
             </div>
 
             <div class="panel">
@@ -786,7 +835,11 @@
         <section class="app-section" data-section="games">
           <div class="section-head">
             <h2>Games</h2>
-            <span class="section-meta" id="games-section-meta"></span>
+          </div>
+
+          <div class="tab-strip" data-tab-section="games">
+            <button type="button" class="tab-btn active" data-tab="active">Active <span class="tab-count" data-tab-count="active">0</span></button>
+            <button type="button" class="tab-btn" data-tab="archived">Archived <span class="tab-count" data-tab-count="archived">0</span></button>
           </div>
 
           <div class="panel">
