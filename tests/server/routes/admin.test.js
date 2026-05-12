@@ -940,3 +940,35 @@ test('POST /quizzes/:id/unarchive 404 unknown quiz', async () => {
   const res = await request('POST', '/api/admin/quizzes/99999/unarchive');
   assert.equal(res.status, 404);
 });
+
+// ── Admin parity (TRI-131) ────────────────────────────
+//
+// Every admin must have identical privileges. There is no "super admin" or
+// "seed admin" tier: a user promoted via POST /users/:id/admin must be able
+// to reach every requireAdmin-gated route the seed admin can.
+
+test('a newly-promoted admin can reach the same admin endpoints as the seed admin (TRI-131)', async () => {
+  // Promote the second user, then act as them.
+  asAdmin();
+  const promote = await request('POST', `/api/admin/users/${userId}/admin`, { isAdmin: true });
+  assert.equal(promote.status, 200);
+  session.userId = userId;
+
+  // A representative call from each route family. If any of these 403s,
+  // requireAdmin or a route has drifted away from the single-flag model.
+  const probes = [
+    ['GET',  '/api/admin/users'],
+    ['GET',  '/api/admin/quizzes'],
+    ['GET',  '/api/admin/games'],
+    ['GET',  '/api/admin/active-rooms'],
+  ];
+  for (const [method, path] of probes) {
+    const res = await request(method, path);
+    assert.equal(res.status, 200, `${method} ${path} should be reachable by a promoted admin`);
+  }
+
+  // And a mutating call: promoting/demoting another user (the seed admin).
+  // We grant then re-grant — both must succeed without 403.
+  const back = await request('POST', `/api/admin/users/${adminId}/admin`, { isAdmin: true });
+  assert.equal(back.status, 200, 'promoted admin must be able to manage admin flags');
+});

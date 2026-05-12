@@ -705,6 +705,17 @@ test('disabled admin loses override — gets 403 like any other non-owner (TRI-8
   assert.equal(res.status, 403);
 });
 
+test('archived admin loses override — gets 403 like any other non-owner (TRI-131)', async () => {
+  const quiz = await createQuiz();
+  // Promote, then archive, the admin. Mirrors the disabled-admin case so the
+  // quiz override matches requireAdmin's rules everywhere.
+  db.prepare("UPDATE users SET isAdmin = 1, archivedAt = datetime('now') WHERE id = ?")
+    .run(otherId);
+  session.userId = otherId;
+  const res = await request('PATCH', `/api/quizzes/${quiz.id}`, { name: 'Should fail' });
+  assert.equal(res.status, 403);
+});
+
 test('non-admin override does not apply — third user still gets 403 (TRI-88)', async () => {
   const quiz = await createQuiz();
   const thirdId = db.prepare(
@@ -735,6 +746,19 @@ test('disabled admin does not see other owners\' quizzes in list (TRI-102)', asy
   await request('POST', '/api/quizzes', { name: 'Owner Live' });
   // Promote and disable the admin — the override must not apply.
   db.prepare("UPDATE users SET isAdmin = 1, disabledAt = datetime('now') WHERE id = ?")
+    .run(otherId);
+  session.userId = otherId;
+
+  const res = await request('GET', '/api/quizzes');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.quizzes.length, 0);
+});
+
+test('archived admin does not see other owners\' quizzes in list (TRI-131)', async () => {
+  asOwner();
+  await request('POST', '/api/quizzes', { name: 'Owner Live' });
+  // Promote and archive the admin — the override must not apply.
+  db.prepare("UPDATE users SET isAdmin = 1, archivedAt = datetime('now') WHERE id = ?")
     .run(otherId);
   session.userId = otherId;
 
