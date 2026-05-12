@@ -38,7 +38,6 @@ function createRoom(hostUserId, hostDisplayName) {
     streaks: new Map(),
     maxStreaks: new Map(),
     roundResults: [],
-    votesToFinish: new Set(),
     createdAt: Date.now(),
     lastActivity: Date.now(),
   };
@@ -98,7 +97,6 @@ function startGame(room) {
   room.questionIndex = 0;
   room.currentRound = 1;
   room.roundResults = [];
-  room.votesToFinish.clear();
   for (const userId of room.players.keys()) {
     room.scores.set(userId, 0);
     room.streaks.set(userId, 0);
@@ -117,7 +115,6 @@ function startRound(room) {
   room.currentChallenge = challengeFromQuestion(question);
   room.roundAnswers.clear();
   room.roundResolved = false;
-  room.votesToFinish.clear();
   room.lastActivity = Date.now();
 }
 
@@ -225,9 +222,12 @@ function nextRound(room) {
   return true;
 }
 
-function voteFinish(room, userId) {
-  room.votesToFinish.add(userId);
-  return room.votesToFinish.size >= Math.ceil(room.players.size / 2);
+function listActiveRooms() {
+  const out = [];
+  for (const room of rooms.values()) {
+    out.push(room);
+  }
+  return out;
 }
 
 function finishGame(room) {
@@ -317,7 +317,7 @@ export {
   resolveRound,
   nextRound,
   hasMoreQuestions,
-  voteFinish,
+  listActiveRooms,
   finishGame,
   getRoomState,
 };

@@ -15,6 +15,9 @@ const els = {
   newQuizBtn: document.getElementById('new-quiz-btn'),
   gameList: document.getElementById('game-list'),
   gamesMsg: document.getElementById('games-msg'),
+  activeRoomList: document.getElementById('active-room-list'),
+  activeRoomsMsg: document.getElementById('active-rooms-msg'),
+  refreshActiveRoomsBtn: document.getElementById('refresh-active-rooms-btn'),
   editor: document.getElementById('quiz-editor'),
   editorTitle: document.getElementById('editor-title'),
   editorMeta: document.getElementById('editor-meta'),
@@ -333,6 +336,59 @@ function renderGames(games) {
   }).join('');
 }
 
+function renderActiveRooms(rooms) {
+  if (!rooms.length) {
+    els.activeRoomList.innerHTML = '<li class="empty">No games in progress.</li>';
+    return;
+  }
+  els.activeRoomList.innerHTML = rooms.map(r => {
+    const quiz = r.quiz
+      ? `${escapeHtml(r.quiz.name)} (${r.quiz.questionCount} q)`
+      : '<span class="user-email">(no quiz selected)</span>';
+    const host = r.hostDisplayName
+      ? escapeHtml(r.hostDisplayName)
+      : `User #${r.hostUserId}`;
+    const stateBadge = r.state === 'playing'
+      ? '<span class="badge badge-admin">Playing</span>'
+      : '<span class="badge badge-disabled">Lobby</span>';
+    const roundInfo = r.state === 'playing' && r.quiz
+      ? `Round ${r.currentRound} / ${r.quiz.questionCount}`
+      : '';
+    const playerNames = r.players
+      .map(p => escapeHtml(p.displayName || `User #${p.userId}`))
+      .join(', ');
+    const endBtn = r.state === 'playing'
+      ? `<button class="btn btn-danger btn-small" data-act="end-room" data-code="${escapeHtml(r.code)}">End Game</button>`
+      : '';
+    return `
+      <li class="user-row" data-code="${escapeHtml(r.code)}">
+        <div class="user-head">
+          <span class="user-name">Room ${escapeHtml(r.code)}</span>
+          ${stateBadge}
+        </div>
+        <div class="user-meta">
+          Host: ${host} ·
+          Quiz: ${quiz}
+          ${roundInfo ? ` · ${roundInfo}` : ''}
+          ${r.startedAt ? ` · Started ${fmtDateTime(new Date(r.startedAt).toISOString().slice(0, 19).replace('T', ' '))}` : ''}
+        </div>
+        <div class="user-meta">Players (${r.players.length}): ${playerNames || '<em>none</em>'}</div>
+        <div class="user-actions">${endBtn}</div>
+      </li>
+    `;
+  }).join('');
+}
+
+async function loadActiveRooms() {
+  setMsg(els.activeRoomsMsg, '');
+  try {
+    const { rooms } = await fetchJson(`${API}/admin/active-rooms`);
+    renderActiveRooms(rooms);
+  } catch (err) {
+    setMsg(els.activeRoomsMsg, err.message, 'error');
+  }
+}
+
 async function loadGames() {
   setMsg(els.gamesMsg, '');
   try {
@@ -448,8 +504,28 @@ async function init() {
   els.loading.style.display = 'none';
   els.content.style.display = 'block';
 
-  await Promise.all([loadUsers(), loadQuizzes(), loadGames()]);
+  await Promise.all([loadUsers(), loadQuizzes(), loadGames(), loadActiveRooms()]);
 }
+
+els.refreshActiveRoomsBtn.addEventListener('click', loadActiveRooms);
+
+els.activeRoomList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act="end-room"]');
+  if (!btn) return;
+  const code = btn.dataset.code;
+  if (!code) return;
+  if (!confirm(`End game in room ${code}? Players will see a final scoreboard.`)) return;
+  setMsg(els.activeRoomsMsg, '');
+  btn.disabled = true;
+  try {
+    await fetchJson(`${API}/admin/active-rooms/${encodeURIComponent(code)}/end`, { method: 'POST' });
+    setMsg(els.activeRoomsMsg, `Ended room ${code}.`, 'success');
+    await Promise.all([loadActiveRooms(), loadGames()]);
+  } catch (err) {
+    btn.disabled = false;
+    setMsg(els.activeRoomsMsg, err.message, 'error');
+  }
+});
 
 els.gameList.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-act]');

@@ -88,7 +88,7 @@ A single WebSocket endpoint `/ws/quiz-battle` upgraded with the same `express-se
 
 - **Room state lives in-memory** (`server/multiplayer/rooms.js`). Rooms are keyed by a 4-char code drawn from an unambiguous alphabet (no `0/O`, `1/I`). No Redis — the server is single-instance.
 - **Participant ID convention**: positive integers = registered users (`users.id`), negative = guests (`-guests.id`). One numeric ID identifies any participant; the sign tells you which table to write to.
-- **State machine**: `lobby → playing → finished`. Host picks quiz, ≥2 players required to start. First correct answer ends the round; everyone sees the result; host advances or the room votes to finish.
+- **State machine**: `lobby → playing → finished`. Host picks quiz, ≥2 players required to start. First correct answer ends the round; everyone sees the result; the host advances or ends the game early (admins can also end any active game from the admin console).
 - **Persistence on game end**: streaks update for both users and guests, chesnut balances update for users, and a row is written to `quiz_battle_games` / `_players` / `_rounds` (only when at least one registered user played, since those tables FK to `users`).
 - **Mid-game disconnect**: if remaining players drop below 2, the game ends with `aborted: true` and players still get credit for rounds they helped resolve.
 

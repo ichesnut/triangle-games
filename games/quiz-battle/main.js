@@ -12,7 +12,6 @@ let ws = null;
 let roomCode = null;
 let roomState = null;
 let isHost = false;
-let hasVotedFinish = false;
 
 // Editor state
 let editingQuizId = null;
@@ -883,7 +882,6 @@ function handleServerMessage(msg) {
     case 'round_start': handleRoundStart(msg); break;
     case 'answer_received': handleAnswerReceived(msg); break;
     case 'round_result': handleRoundResult(msg); break;
-    case 'vote_update': handleVoteUpdate(msg); break;
     case 'game_over': handleGameOver(msg); break;
     case 'error':
       console.error('Server error:', msg.message);
@@ -923,7 +921,6 @@ function handleRoundStart(msg) {
   myAnswerFree = '';
   myAnswerChoice = currentChallenge.type === 'multiple' ? new Set() : null;
   answerSubmitted = false;
-  hasVotedFinish = false;
 
   document.getElementById('round-info').textContent =
     `Question ${msg.currentRound}${msg.totalRounds ? ' / ' + msg.totalRounds : ''}`;
@@ -963,8 +960,6 @@ function handleRoundResult(msg) {
 
   if (roomState) roomState.players = updatedPlayers;
 
-  document.getElementById('vote-info').textContent = '';
-
   const nextBtn = document.getElementById('next-round-btn');
   const nextHint = document.getElementById('next-round-hint');
   const finalRound = msg.hasMoreQuestions === false;
@@ -983,12 +978,14 @@ function handleRoundResult(msg) {
       : 'Waiting for the host to start the next question…';
   }
 
-  showScreen('result');
-}
+  // End Game is host-only; non-hosts never see the button. Hide on the final
+  // round since "See Final Scores" will end the game on its own.
+  const endBtn = document.getElementById('end-game-btn');
+  endBtn.disabled = false;
+  endBtn.textContent = 'End Game';
+  endBtn.style.display = (isHost && msg.hasMoreQuestions !== false) ? '' : 'none';
 
-function handleVoteUpdate(msg) {
-  document.getElementById('vote-info').textContent =
-    `${msg.voterName} voted to finish. ${msg.votesNeeded} more vote${msg.votesNeeded !== 1 ? 's' : ''} needed.`;
+  showScreen('result');
 }
 
 function handleGameOver(msg) {
@@ -1315,13 +1312,13 @@ document.getElementById('next-round-btn').addEventListener('click', () => {
   send({ type: 'next_round' });
 });
 
-document.getElementById('vote-finish-btn').addEventListener('click', () => {
-  if (!hasVotedFinish) {
-    hasVotedFinish = true;
-    send({ type: 'vote_finish' });
-    document.getElementById('vote-finish-btn').disabled = true;
-    document.getElementById('vote-finish-btn').textContent = 'Voted';
-  }
+document.getElementById('end-game-btn').addEventListener('click', () => {
+  if (!isHost) return;
+  if (!confirm('End the game now and show final scores?')) return;
+  const btn = document.getElementById('end-game-btn');
+  btn.disabled = true;
+  btn.textContent = 'Ending…';
+  send({ type: 'end_game' });
 });
 
 document.getElementById('play-again-btn').addEventListener('click', async () => {
