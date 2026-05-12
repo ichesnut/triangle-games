@@ -7,3 +7,4 @@ agents/
 coverage/
 .nyc_output/
 reports/
+public/deploy-info.json
