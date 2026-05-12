@@ -3,7 +3,6 @@ const API = '/api/chesnuts';
 const els = {
   loading: document.getElementById('loading'),
   appShell: document.getElementById('app-shell'),
-  content: document.getElementById('content'),
   denied: document.getElementById('denied'),
   me: document.getElementById('me'),
   sidebar: document.getElementById('sidebar'),
@@ -561,13 +560,36 @@ function showSection(name) {
     s.classList.toggle('active', s.dataset.section === name);
   });
   els.navButtons.forEach(b => {
-    b.classList.toggle('active', b.dataset.section === name);
+    const isActive = b.dataset.section === name;
+    b.classList.toggle('active', isActive);
+    if (isActive) {
+      b.setAttribute('aria-current', 'page');
+    } else {
+      b.removeAttribute('aria-current');
+    }
   });
   els.mobileTitle.textContent = SECTION_TITLES[name];
   if (location.hash.replace(/^#/, '') !== name) {
     history.replaceState(null, '', `#${name}`);
   }
   closeDrawer();
+}
+
+const mobileMQ = window.matchMedia('(max-width: 760px)');
+
+function isDrawerOpen() {
+  return els.appShell.classList.contains('drawer-open');
+}
+
+function syncDrawerA11y(isOpen) {
+  els.menuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  // On mobile the sidebar is translated off-screen but still focusable. Use
+  // `inert` so screen-reader users and keyboard tabbing skip it while closed.
+  if (mobileMQ.matches && !isOpen) {
+    els.sidebar.setAttribute('inert', '');
+  } else {
+    els.sidebar.removeAttribute('inert');
+  }
 }
 
 function setupNavigation() {
@@ -577,16 +599,21 @@ function setupNavigation() {
     showSection(btn.dataset.section);
   });
   els.menuToggle.addEventListener('click', () => {
-    els.appShell.classList.toggle('drawer-open');
+    const isOpen = els.appShell.classList.toggle('drawer-open');
+    syncDrawerA11y(isOpen);
   });
   els.sidebarBackdrop.addEventListener('click', closeDrawer);
   window.addEventListener('hashchange', () => {
     showSection(initialSectionFromHash());
   });
+
+  mobileMQ.addEventListener('change', () => syncDrawerA11y(isDrawerOpen()));
+  syncDrawerA11y(false);
 }
 
 function closeDrawer() {
   els.appShell.classList.remove('drawer-open');
+  syncDrawerA11y(false);
 }
 
 function setNavCount(name, count) {
