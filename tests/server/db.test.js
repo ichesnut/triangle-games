@@ -31,6 +31,7 @@ const EXPECTED_TABLES = [
   'quiz_questions',
   'math_battle_games',
   'math_battle_players',
+  'math_battle_guest_players',
   'math_battle_rounds',
 ];
 
@@ -40,6 +41,7 @@ const EXPECTED_INDEXES = [
   'idx_redemptions_user',
   'idx_math_battle_players_user',
   'idx_math_battle_players_game',
+  'idx_math_battle_guest_players_game',
   'idx_math_battle_rounds_game',
   'idx_quizzes_owner',
   'idx_quiz_questions_quiz',

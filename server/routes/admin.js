@@ -265,7 +265,9 @@ router.get('/games', requireAdmin, (req, res) => {
            g.archivedAt,
            g.winnerUserId, g.winnerGuestId, g.winnerDisplayName, g.winnerRoundsWon,
            q.name AS quizName,
-           (SELECT COUNT(*) FROM math_battle_players WHERE gameId = g.id) AS playerCount
+           (SELECT COUNT(*) FROM math_battle_players WHERE gameId = g.id)
+             + (SELECT COUNT(*) FROM math_battle_guest_players WHERE gameId = g.id)
+             AS playerCount
     FROM math_battle_games g
     LEFT JOIN quizzes q ON q.id = g.quizId
     ORDER BY g.finishedAt DESC, g.id DESC
@@ -344,14 +346,49 @@ router.get('/games/:id', requireAdmin, (req, res) => {
   `).get(id);
   if (!game) return res.status(404).json({ error: 'Game not found' });
 
-  const players = db.prepare(`
-    SELECT p.userId, p.roundsWon, p.chesnutsEarned,
+  const userPlayerRows = db.prepare(`
+    SELECT p.id, p.userId, p.roundsWon, p.chesnutsEarned,
            u.displayName, u.email
     FROM math_battle_players p
     LEFT JOIN users u ON u.id = p.userId
     WHERE p.gameId = ?
-    ORDER BY p.roundsWon DESC, p.id ASC
+    ORDER BY p.id ASC
   `).all(id);
+
+  const guestPlayerRows = db.prepare(`
+    SELECT id, guestId, displayName, roundsWon
+    FROM math_battle_guest_players
+    WHERE gameId = ?
+    ORDER BY id ASC
+  `).all(id);
+
+  // Merge registered + guest participants into one list (TRI-117). Sort by
+  // roundsWon DESC, then by insertion order so the leader appears first and
+  // ties resolve to the player who joined the room first.
+  const players = [
+    ...userPlayerRows.map(p => ({
+      source: 'user',
+      userId: p.userId,
+      guestId: null,
+      displayName: p.displayName,
+      email: p.email,
+      roundsWon: p.roundsWon,
+      chesnutsEarned: p.chesnutsEarned,
+      _order: p.id,
+    })),
+    ...guestPlayerRows.map(p => ({
+      source: 'guest',
+      userId: null,
+      guestId: p.guestId,
+      displayName: p.displayName,
+      email: null,
+      roundsWon: p.roundsWon,
+      chesnutsEarned: 0,
+      _order: p.id,
+    })),
+  ]
+    .sort((a, b) => (b.roundsWon - a.roundsWon) || (a._order - b._order))
+    .map(({ _order, ...rest }) => rest);
 
   const rounds = db.prepare(`
     SELECT r.roundNumber, r.challenge, r.correctAnswer, r.winnerId, r.timeTakenMs,
@@ -362,8 +399,16 @@ router.get('/games/:id', requireAdmin, (req, res) => {
     ORDER BY r.roundNumber ASC
   `).all(id);
 
-  const topScorer = players.length
-    ? { userId: players[0].userId, roundsWon: players[0].roundsWon, displayName: players[0].displayName }
+  // Legacy winner fallback only considers registered players — guest winners
+  // are captured by the winnerGuestId / winnerDisplayName snapshot on the
+  // game row (TRI-101).
+  const topScorer = userPlayerRows.length
+    ? (() => {
+        const top = [...userPlayerRows].sort(
+          (a, b) => (b.roundsWon - a.roundsWon) || (a.id - b.id)
+        )[0];
+        return { userId: top.userId, roundsWon: top.roundsWon, displayName: top.displayName };
+      })()
     : null;
 
   res.json({

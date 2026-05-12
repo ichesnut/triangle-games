@@ -49,6 +49,7 @@ const games = [];
 before(async () => {
   db.exec('DELETE FROM math_battle_rounds');
   db.exec('DELETE FROM math_battle_players');
+  db.exec('DELETE FROM math_battle_guest_players');
   db.exec('DELETE FROM math_battle_games');
   db.exec('DELETE FROM quiz_questions');
   db.exec('DELETE FROM quiz_categories');
@@ -328,6 +329,17 @@ test('TRI-85: multiple games run concurrently in isolation', async () => {
       assert.equal(playerRows.length, 1,
         `[g${s.index}] expected only the registered host in math_battle_players`);
       assert.equal(playerRows[0].userId, s.hostUserId);
+
+      // Guests persist to math_battle_guest_players (TRI-117).
+      const guestPlayerRows = db.prepare(
+        'SELECT guestId FROM math_battle_guest_players WHERE gameId = ?'
+      ).all(game.id);
+      assert.equal(guestPlayerRows.length, s.guestIds.length,
+        `[g${s.index}] expected every guest in math_battle_guest_players`);
+      assert.deepEqual(
+        guestPlayerRows.map(r => r.guestId).sort((a, b) => a - b),
+        [...s.guestIds].sort((a, b) => a - b),
+      );
 
       const roundRows = db.prepare(
         'SELECT roundNumber FROM math_battle_rounds WHERE gameId = ? ORDER BY roundNumber ASC'

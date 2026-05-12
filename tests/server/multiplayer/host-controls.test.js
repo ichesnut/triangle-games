@@ -33,6 +33,7 @@ const QUESTION_COUNT = 3;
 before(async () => {
   db.exec('DELETE FROM math_battle_rounds');
   db.exec('DELETE FROM math_battle_players');
+  db.exec('DELETE FROM math_battle_guest_players');
   db.exec('DELETE FROM math_battle_games');
   db.exec('DELETE FROM quiz_questions');
   db.exec('DELETE FROM quiz_categories');

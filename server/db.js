@@ -228,6 +228,20 @@ db.exec(`
   )
 `);
 
+// Per-game roster of unregistered guest participants (TRI-117). Kept in a
+// separate table so we don't have to recreate math_battle_players to relax
+// its NOT NULL userId. displayName is snapshotted so the admin detail view
+// still names a guest even if the guests row is later deleted.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS math_battle_guest_players (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gameId INTEGER NOT NULL REFERENCES math_battle_games(id),
+    guestId INTEGER REFERENCES guests(id) ON DELETE SET NULL,
+    displayName TEXT NOT NULL,
+    roundsWon INTEGER NOT NULL DEFAULT 0
+  )
+`);
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS math_battle_rounds (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -246,6 +260,7 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_challenges_category ON challenges(catego
 db.exec(`CREATE INDEX IF NOT EXISTS idx_redemptions_user ON redemptions(userId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_players_user ON math_battle_players(userId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_players_game ON math_battle_players(gameId)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_guest_players_game ON math_battle_guest_players(gameId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_math_battle_rounds_game ON math_battle_rounds(gameId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_quizzes_owner ON quizzes(ownerUserId)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_quiz_questions_quiz ON quiz_questions(quizId, position)`);
