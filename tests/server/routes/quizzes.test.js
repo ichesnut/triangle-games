@@ -714,3 +714,31 @@ test('non-admin override does not apply — third user still gets 403 (TRI-88)',
   const res = await request('PATCH', `/api/quizzes/${quiz.id}`, { name: 'Nope' });
   assert.equal(res.status, 403);
 });
+
+test('admin GET /api/quizzes lists every owner\'s non-archived quizzes (TRI-102)', async () => {
+  // Owner has two quizzes, one archived; admin has none of their own.
+  asOwner();
+  await request('POST', '/api/quizzes', { name: 'Owner Live' });
+  await request('POST', '/api/quizzes', { name: 'Owner Archived' });
+  db.prepare("UPDATE quizzes SET archivedAt = datetime('now') WHERE name = ?")
+    .run('Owner Archived');
+
+  asAdmin();
+  const res = await request('GET', '/api/quizzes');
+  assert.equal(res.status, 200);
+  const names = res.body.quizzes.map(q => q.name).sort();
+  assert.deepEqual(names, ['Owner Live']);
+});
+
+test('disabled admin does not see other owners\' quizzes in list (TRI-102)', async () => {
+  asOwner();
+  await request('POST', '/api/quizzes', { name: 'Owner Live' });
+  // Promote and disable the admin — the override must not apply.
+  db.prepare("UPDATE users SET isAdmin = 1, disabledAt = datetime('now') WHERE id = ?")
+    .run(otherId);
+  session.userId = otherId;
+
+  const res = await request('GET', '/api/quizzes');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.quizzes.length, 0);
+});
