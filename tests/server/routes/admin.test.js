@@ -32,6 +32,7 @@ beforeEach(() => {
   db.exec('DELETE FROM quiz_questions');
   db.exec('DELETE FROM quiz_categories');
   db.exec('DELETE FROM quizzes');
+  db.exec('DELETE FROM guests');
   db.exec('DELETE FROM users');
 
   const hash = bcrypt.hashSync('secret123', 4);
@@ -384,13 +385,23 @@ function seedGame({
   totalRounds = 2,
   startedAt = '2026-05-09 10:00:00',
   finishedAt = '2026-05-09 10:05:30',
+  winnerUserId = null,
+  winnerGuestId = null,
+  winnerDisplayName = null,
+  winnerRoundsWon = null,
   players = [],
   rounds = [],
 } = {}) {
-  const insertGame = db.prepare(
-    'INSERT INTO math_battle_games (roomCode, quizId, totalRounds, startedAt, finishedAt) VALUES (?, ?, ?, ?, ?)'
-  );
-  const gameId = insertGame.run(roomCode, quizId, totalRounds, startedAt, finishedAt).lastInsertRowid;
+  const insertGame = db.prepare(`
+    INSERT INTO math_battle_games (
+      roomCode, quizId, totalRounds, startedAt, finishedAt,
+      winnerUserId, winnerGuestId, winnerDisplayName, winnerRoundsWon
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const gameId = insertGame.run(
+    roomCode, quizId, totalRounds, startedAt, finishedAt,
+    winnerUserId, winnerGuestId, winnerDisplayName, winnerRoundsWon,
+  ).lastInsertRowid;
 
   const insertPlayer = db.prepare(
     'INSERT INTO math_battle_players (gameId, userId, roundsWon, chesnutsEarned) VALUES (?, ?, ?, ?)'
@@ -406,6 +417,12 @@ function seedGame({
   return gameId;
 }
 
+function seedGuest({ displayName = 'Guesty', guestToken = 'tok-' + Math.random() } = {}) {
+  return db.prepare(
+    'INSERT INTO guests (guestToken, displayName) VALUES (?, ?)'
+  ).run(guestToken, displayName).lastInsertRowid;
+}
+
 test('GET /games 401 without session', async () => {
   const res = await request('GET', '/api/admin/games');
   assert.equal(res.status, 401);
@@ -417,7 +434,7 @@ test('GET /games 403 when caller is not admin', async () => {
   assert.equal(res.status, 403);
 });
 
-test('GET /games returns games newest first with quiz, duration, and top scorer', async () => {
+test('GET /games returns games newest first with quiz, duration, and registered winner', async () => {
   const quizId = db.prepare('INSERT INTO quizzes (ownerUserId, name) VALUES (?, ?)')
     .run(adminId, 'Capitals').lastInsertRowid;
 
@@ -427,6 +444,9 @@ test('GET /games returns games newest first with quiz, duration, and top scorer'
     totalRounds: 3,
     startedAt: '2026-05-08 09:00:00',
     finishedAt: '2026-05-08 09:04:00',
+    winnerUserId: userId,
+    winnerDisplayName: 'User',
+    winnerRoundsWon: 2,
     players: [
       { userId: adminId, roundsWon: 1, chesnutsEarned: 3 },
       { userId: userId, roundsWon: 2, chesnutsEarned: 6 },
@@ -439,6 +459,9 @@ test('GET /games returns games newest first with quiz, duration, and top scorer'
     totalRounds: 5,
     startedAt: '2026-05-09 10:00:00',
     finishedAt: '2026-05-09 10:05:30',
+    winnerUserId: adminId,
+    winnerDisplayName: 'Admin',
+    winnerRoundsWon: 4,
     players: [
       { userId: adminId, roundsWon: 4, chesnutsEarned: 12 },
       { userId: userId, roundsWon: 1, chesnutsEarned: 3 },
@@ -461,9 +484,87 @@ test('GET /games returns games newest first with quiz, duration, and top scorer'
   assert.equal(newer.totalRounds, 5);
   assert.equal(newer.playerCount, 2);
   assert.equal(newer.durationMs, 5 * 60 * 1000 + 30 * 1000);
-  assert.equal(newer.topScorer.userId, adminId);
-  assert.equal(newer.topScorer.roundsWon, 4);
-  assert.equal(newer.topScorer.displayName, 'Admin');
+  assert.equal(newer.winner.source, 'user');
+  assert.equal(newer.winner.userId, adminId);
+  assert.equal(newer.winner.guestId, null);
+  assert.equal(newer.winner.displayName, 'Admin');
+  assert.equal(newer.winner.roundsWon, 4);
+});
+
+test('GET /games surfaces an unregistered guest as the winner', async () => {
+  const guestId = seedGuest({ displayName: 'Sneaky Guest' });
+  const gameId = seedGame({
+    roomCode: 'GSTW',
+    winnerGuestId: guestId,
+    winnerDisplayName: 'Sneaky Guest',
+    winnerRoundsWon: 3,
+    // Registered loser participates; guest winner is not in math_battle_players.
+    players: [{ userId: userId, roundsWon: 1, chesnutsEarned: 3 }],
+  });
+
+  asAdmin();
+  const res = await request('GET', '/api/admin/games');
+  assert.equal(res.status, 200);
+  const g = res.body.games.find(x => x.id === gameId);
+  assert.ok(g);
+  assert.equal(g.winner.source, 'guest');
+  assert.equal(g.winner.userId, null);
+  assert.equal(g.winner.guestId, guestId);
+  assert.equal(g.winner.displayName, 'Sneaky Guest');
+  assert.equal(g.winner.roundsWon, 3);
+});
+
+test('GET /games surfaces winner for all-guest games (no math_battle_players rows)', async () => {
+  const guestId = seedGuest({ displayName: 'Solo Guest' });
+  const gameId = seedGame({
+    roomCode: 'ALGS',
+    winnerGuestId: guestId,
+    winnerDisplayName: 'Solo Guest',
+    winnerRoundsWon: 2,
+    players: [],
+  });
+
+  asAdmin();
+  const res = await request('GET', '/api/admin/games');
+  assert.equal(res.status, 200);
+  const g = res.body.games.find(x => x.id === gameId);
+  assert.ok(g);
+  assert.equal(g.playerCount, 0);
+  assert.equal(g.winner.source, 'guest');
+  assert.equal(g.winner.displayName, 'Solo Guest');
+  assert.equal(g.winner.roundsWon, 2);
+});
+
+test('GET /games falls back to top math_battle_players scorer for legacy rows missing winner snapshot', async () => {
+  // Legacy row recorded before TRI-101: winner* columns are NULL but the
+  // top math_battle_players row still identifies who took the most rounds.
+  seedGame({
+    roomCode: 'LEGW',
+    players: [
+      { userId: adminId, roundsWon: 1, chesnutsEarned: 3 },
+      { userId: userId, roundsWon: 3, chesnutsEarned: 9 },
+    ],
+  });
+
+  asAdmin();
+  const res = await request('GET', '/api/admin/games');
+  assert.equal(res.status, 200);
+  const g = res.body.games[0];
+  assert.equal(g.winner.source, 'user');
+  assert.equal(g.winner.userId, userId);
+  assert.equal(g.winner.displayName, 'User');
+  assert.equal(g.winner.roundsWon, 3);
+});
+
+test('GET /games returns winner=null for games with no rounds won', async () => {
+  seedGame({
+    roomCode: 'NOWN',
+    players: [{ userId: adminId, roundsWon: 0, chesnutsEarned: 0 }],
+  });
+  asAdmin();
+  const res = await request('GET', '/api/admin/games');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.games[0].winner, null);
 });
 
 test('GET /games tolerates legacy rows missing startedAt/quizId', async () => {
@@ -486,7 +587,7 @@ test('GET /games tolerates legacy rows missing startedAt/quizId', async () => {
 
 // ── GET /games/:id ─────────────────────────────────────
 
-test('GET /games/:id returns players and rounds', async () => {
+test('GET /games/:id returns players, rounds, and winner', async () => {
   const quizId = db.prepare('INSERT INTO quizzes (ownerUserId, name) VALUES (?, ?)')
     .run(adminId, 'Trivia').lastInsertRowid;
   const gameId = seedGame({
@@ -495,6 +596,9 @@ test('GET /games/:id returns players and rounds', async () => {
     totalRounds: 2,
     startedAt: '2026-05-09 10:00:00',
     finishedAt: '2026-05-09 10:02:00',
+    winnerUserId: adminId,
+    winnerDisplayName: 'Admin',
+    winnerRoundsWon: 1,
     players: [
       { userId: adminId, roundsWon: 1, chesnutsEarned: 3 },
       { userId: userId, roundsWon: 1, chesnutsEarned: 3 },
@@ -520,6 +624,27 @@ test('GET /games/:id returns players and rounds', async () => {
   assert.equal(game.rounds[0].winnerDisplayName, 'Admin');
   assert.equal(game.rounds[1].winnerId, null);
   assert.equal(game.rounds[1].winnerDisplayName, null);
+  assert.equal(game.winner.source, 'user');
+  assert.equal(game.winner.displayName, 'Admin');
+  assert.equal(game.winner.roundsWon, 1);
+});
+
+test('GET /games/:id returns guest winner with empty players list (all-guest game)', async () => {
+  const guestId = seedGuest({ displayName: 'Guest Champ' });
+  const gameId = seedGame({
+    roomCode: 'GSTD',
+    winnerGuestId: guestId,
+    winnerDisplayName: 'Guest Champ',
+    winnerRoundsWon: 2,
+    players: [],
+  });
+  asAdmin();
+  const res = await request('GET', `/api/admin/games/${gameId}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.game.winner.source, 'guest');
+  assert.equal(res.body.game.winner.guestId, guestId);
+  assert.equal(res.body.game.winner.displayName, 'Guest Champ');
+  assert.equal(res.body.game.players.length, 0);
 });
 
 test('GET /games/:id 404 for unknown game', async () => {

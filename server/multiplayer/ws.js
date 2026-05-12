@@ -67,24 +67,54 @@ function toSqliteTimestamp(epochMs) {
   return new Date(epochMs).toISOString().slice(0, 19).replace('T', ' ');
 }
 
-const recordGame = db.transaction((roomCode, gameResult, players, gameMeta = {}) => {
-  const registeredPlayers = players.filter(p => isUserId(p.userId));
-  if (!registeredPlayers.length) {
-    // No registered players → nothing to persist in math_battle_* (those
-    // tables FK on users.id). Streaks are still recorded via persistStreaks.
-    return null;
+// Pick the game-level winner from the in-memory state. Returns null when
+// nobody won a round. Tie-break: earliest player in the room's insertion
+// order (matches the existing topScorer SQL tie-break by player row id asc).
+function pickGameWinner(gameResult, players) {
+  let best = null;
+  for (const p of players) {
+    const score = gameResult.scores[p.userId] || 0;
+    if (score <= 0) continue;
+    if (!best || score > best.score) {
+      best = { participantId: p.userId, displayName: p.displayName, score };
+    }
   }
+  if (!best) return null;
+  return {
+    isGuest: !isUserId(best.participantId),
+    userId: isUserId(best.participantId) ? best.participantId : null,
+    guestId: isUserId(best.participantId) ? null : -best.participantId,
+    displayName: best.displayName,
+    roundsWon: best.score,
+  };
+}
 
-  const insertGame = db.prepare(
-    "INSERT INTO math_battle_games (roomCode, quizId, totalRounds, startedAt, finishedAt) VALUES (?, ?, ?, ?, datetime('now'))"
-  );
+const recordGame = db.transaction((roomCode, gameResult, players, gameMeta = {}) => {
+  const winner = pickGameWinner(gameResult, players);
+
+  // The game row is always inserted, even when only guests played, so the
+  // admin console can show a winner for every finished game (TRI-101). The
+  // math_battle_players and math_battle_rounds FK constraints still keep
+  // guest rows out of those tables — guest winners are captured here via
+  // the winnerGuestId / winnerDisplayName snapshot on math_battle_games.
+  const insertGame = db.prepare(`
+    INSERT INTO math_battle_games (
+      roomCode, quizId, totalRounds, startedAt, finishedAt,
+      winnerUserId, winnerGuestId, winnerDisplayName, winnerRoundsWon
+    ) VALUES (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?)
+  `);
   const { lastInsertRowid: gameId } = insertGame.run(
     roomCode,
     gameMeta.quizId ?? null,
     gameResult.totalRounds,
     toSqliteTimestamp(gameMeta.startedAt),
+    winner?.userId ?? null,
+    winner?.guestId ?? null,
+    winner?.displayName ?? null,
+    winner?.roundsWon ?? null,
   );
 
+  const registeredPlayers = players.filter(p => isUserId(p.userId));
   const insertPlayer = db.prepare(
     'INSERT INTO math_battle_players (gameId, userId, roundsWon, chesnutsEarned) VALUES (?, ?, ?, ?)'
   );
