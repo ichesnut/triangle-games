@@ -14,7 +14,9 @@ const STYLE = `
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    padding: 0.3rem 0.75rem;
+    /* env(safe-area-inset-top) keeps the banner clear of the iOS status bar
+       and Dynamic Island when running as a standalone PWA. */
+    padding: calc(0.3rem + env(safe-area-inset-top)) 0.75rem 0.3rem;
     background: rgba(15, 22, 46, 0.92);
     color: #cfd3e0;
     font-family: system-ui, -apple-system, sans-serif;
@@ -25,13 +27,22 @@ const STYLE = `
     -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
   }
-  .deploy-banner-spacer { height: 28px; flex: 0 0 28px; }
+  .deploy-banner-spacer {
+    height: calc(28px + env(safe-area-inset-top));
+    flex: 0 0 calc(28px + env(safe-area-inset-top));
+  }
   .deploy-banner .deploy-label { color: #8a90a8; }
   .deploy-banner .deploy-time { color: #eee; font-weight: 600; }
   .deploy-banner .deploy-info-wrap {
     position: relative;
     display: inline-flex;
     align-items: center;
+    /* Reserve a 44x44 tap target around the visual icon without changing
+       layout. The button itself stays 18px; ::before extends the hit area. */
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    margin: -13px 0;
   }
   .deploy-banner .deploy-info-btn {
     appearance: none;
@@ -52,6 +63,16 @@ const STYLE = `
     padding: 0;
     font-family: inherit;
     -webkit-tap-highlight-color: transparent;
+    position: relative;
+  }
+  .deploy-banner .deploy-info-btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
   }
   .deploy-banner .deploy-info-btn:hover,
   .deploy-banner .deploy-info-btn:focus-visible {
@@ -61,7 +82,7 @@ const STYLE = `
   }
   .deploy-banner .deploy-tooltip {
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% - 8px);
     right: 0;
     min-width: 240px;
     max-width: min(360px, calc(100vw - 1rem));
@@ -112,7 +133,6 @@ function formatDeployTime(iso) {
   if (!iso) return 'unknown';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return 'unknown';
-  // Example: May 11, 2026 at 8:56 PM
   const date = d.toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
@@ -195,9 +215,16 @@ function renderBanner(info) {
     btn.setAttribute('aria-expanded', 'false');
   }
 
-  // Hover for pointer devices, click toggles for touch + keyboard.
-  wrap.addEventListener('mouseenter', open);
-  wrap.addEventListener('mouseleave', close);
+  // Hover-to-open is gated on devices that actually have a hover-capable
+  // primary pointer. On touch devices, iOS/Android synthesize a mouseenter
+  // immediately before the click, which would race the click toggle and
+  // close the tooltip on tap. Touch devices use the click handler only.
+  const hoverCapable = typeof window.matchMedia === 'function'
+    && window.matchMedia('(hover: hover)').matches;
+  if (hoverCapable) {
+    wrap.addEventListener('mouseenter', open);
+    wrap.addEventListener('mouseleave', close);
+  }
   btn.addEventListener('focus', open);
   btn.addEventListener('blur', close);
   btn.addEventListener('click', (e) => {

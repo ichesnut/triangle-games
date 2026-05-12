@@ -33,7 +33,6 @@ function safeGit(args) {
 
 const deployedAt = new Date().toISOString();
 const commit = safeGit('rev-parse --short HEAD');
-const commitDate = safeGit('log -1 --pretty=format:%cI');
 const log = safeGit("log -5 --no-merges --pretty=format:%s");
 const changes = log
   ? log.split('\n').map(s => s.trim()).filter(Boolean)
@@ -42,7 +41,6 @@ const changes = log
 const info = {
   deployedAt,
   commit: commit || null,
-  commitDate: commitDate || null,
   changes,
 };
 
