@@ -11,6 +11,7 @@ import rewardsRouter from './routes/rewards.js';
 import quizzesRouter from './routes/quizzes.js';
 import adminRouter from './routes/admin.js';
 import { attachWebSocketServer } from './multiplayer/ws.js';
+import { mountStatic } from './static.js';
 import './seed.js';
 
 const SQLiteStore = connectSqlite3(session);
@@ -89,11 +90,7 @@ app.get('/api/health', (req, res) => {
 if (NODE_ENV === 'production') {
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const distPath = join(__dirname, '..', 'dist');
-  app.use(express.static(distPath));
-  // SPA fallback: serve index.html for non-API routes
-  app.get('/{*splat}', (req, res) => {
-    res.sendFile(join(distPath, 'index.html'));
-  });
+  mountStatic(app, distPath);
 }
 
 // Attach WebSocket server for multiplayer
