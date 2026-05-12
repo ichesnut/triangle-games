@@ -18,12 +18,14 @@ function requireAuth(req, res, next) {
 
 // True when the current session belongs to an active admin user. Cached on
 // the request so admin-overridden routes only hit the DB once per request.
+// Must mirror requireAdmin() in routes/admin.js: archived/disabled admins
+// lose the override so every gate enforces the same notion of "admin."
 function isAdminSession(req) {
   if (!req.session?.userId) return false;
   if (req._isAdminCache !== undefined) return req._isAdminCache;
-  const u = db.prepare('SELECT isAdmin, disabledAt FROM users WHERE id = ?')
+  const u = db.prepare('SELECT isAdmin, disabledAt, archivedAt FROM users WHERE id = ?')
     .get(req.session.userId);
-  const isAdmin = !!u && !u.disabledAt && !!u.isAdmin;
+  const isAdmin = !!u && !u.disabledAt && !u.archivedAt && !!u.isAdmin;
   req._isAdminCache = isAdmin;
   return isAdmin;
 }
