@@ -2,19 +2,31 @@ const API = '/api/chesnuts';
 
 const els = {
   loading: document.getElementById('loading'),
+  appShell: document.getElementById('app-shell'),
   content: document.getElementById('content'),
   denied: document.getElementById('denied'),
   me: document.getElementById('me'),
+  sidebar: document.getElementById('sidebar'),
+  sidebarBackdrop: document.getElementById('sidebar-backdrop'),
+  sidebarNav: document.getElementById('sidebar-nav'),
+  menuToggle: document.getElementById('menu-toggle'),
+  mobileTitle: document.getElementById('mobile-section-title'),
+  sections: document.querySelectorAll('.app-section'),
+  navButtons: document.querySelectorAll('.nav-btn'),
+  quizzesSection: document.querySelector('.app-section[data-section="quizzes"]'),
   list: document.getElementById('user-list'),
   registerForm: document.getElementById('register-form'),
   registerMsg: document.getElementById('register-msg'),
   usersMsg: document.getElementById('users-msg'),
+  usersMeta: document.getElementById('users-section-meta'),
   quizList: document.getElementById('quiz-list'),
   quizzesMsg: document.getElementById('quizzes-msg'),
+  quizzesMeta: document.getElementById('quizzes-section-meta'),
   newQuizName: document.getElementById('new-quiz-name'),
   newQuizBtn: document.getElementById('new-quiz-btn'),
   gameList: document.getElementById('game-list'),
   gamesMsg: document.getElementById('games-msg'),
+  gamesMeta: document.getElementById('games-section-meta'),
   activeRoomList: document.getElementById('active-room-list'),
   activeRoomsMsg: document.getElementById('active-rooms-msg'),
   refreshActiveRoomsBtn: document.getElementById('refresh-active-rooms-btn'),
@@ -192,6 +204,11 @@ async function loadUsers() {
   try {
     const { users } = await fetchJson(`${API}/admin/users`);
     renderUsers(users);
+    const active = users.filter(u => !u.disabledAt && !u.archivedAt).length;
+    setNavCount('users', users.length);
+    if (els.usersMeta) {
+      els.usersMeta.textContent = `${users.length} total · ${active} active`;
+    }
   } catch (err) {
     setMsg(els.usersMsg, err.message, 'error');
   }
@@ -239,6 +256,11 @@ async function loadQuizzes() {
   try {
     const { quizzes } = await fetchJson(`${API}/admin/quizzes`);
     renderQuizzes(quizzes);
+    const active = quizzes.filter(q => !q.archivedAt).length;
+    setNavCount('quizzes', quizzes.length);
+    if (els.quizzesMeta) {
+      els.quizzesMeta.textContent = `${quizzes.length} total · ${active} active`;
+    }
   } catch (err) {
     setMsg(els.quizzesMsg, err.message, 'error');
   }
@@ -384,6 +406,7 @@ async function loadActiveRooms() {
   try {
     const { rooms } = await fetchJson(`${API}/admin/active-rooms`);
     renderActiveRooms(rooms);
+    setNavCount('active-games', rooms.length);
   } catch (err) {
     setMsg(els.activeRoomsMsg, err.message, 'error');
   }
@@ -394,6 +417,11 @@ async function loadGames() {
   try {
     const { games } = await fetchJson(`${API}/admin/games`);
     renderGames(games);
+    const active = games.filter(g => !g.archivedAt).length;
+    setNavCount('games', games.length);
+    if (els.gamesMeta) {
+      els.gamesMeta.textContent = `${games.length} total · ${active} active`;
+    }
   } catch (err) {
     setMsg(els.gamesMsg, err.message, 'error');
   }
@@ -502,9 +530,68 @@ async function init() {
   currentUser = me;
   els.me.innerHTML = `Signed in as <span class="name">${escapeHtml(me.displayName)}</span>`;
   els.loading.style.display = 'none';
-  els.content.style.display = 'block';
+  els.appShell.style.display = 'flex';
+
+  setupNavigation();
+  showSection(initialSectionFromHash());
 
   await Promise.all([loadUsers(), loadQuizzes(), loadGames(), loadActiveRooms()]);
+}
+
+// ── Navigation ────────────────────────────────────────
+
+const SECTION_TITLES = {
+  'users': 'Users',
+  'quizzes': 'Quizzes',
+  'active-games': 'Active Games',
+  'games': 'Games',
+};
+
+function initialSectionFromHash() {
+  const fromHash = (location.hash || '').replace(/^#/, '');
+  return SECTION_TITLES[fromHash] ? fromHash : 'users';
+}
+
+function showSection(name) {
+  if (!SECTION_TITLES[name]) name = 'users';
+  if (name !== 'quizzes' && editingQuizId != null) {
+    closeQuizEditor();
+  }
+  els.sections.forEach(s => {
+    s.classList.toggle('active', s.dataset.section === name);
+  });
+  els.navButtons.forEach(b => {
+    b.classList.toggle('active', b.dataset.section === name);
+  });
+  els.mobileTitle.textContent = SECTION_TITLES[name];
+  if (location.hash.replace(/^#/, '') !== name) {
+    history.replaceState(null, '', `#${name}`);
+  }
+  closeDrawer();
+}
+
+function setupNavigation() {
+  els.sidebarNav.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-section]');
+    if (!btn) return;
+    showSection(btn.dataset.section);
+  });
+  els.menuToggle.addEventListener('click', () => {
+    els.appShell.classList.toggle('drawer-open');
+  });
+  els.sidebarBackdrop.addEventListener('click', closeDrawer);
+  window.addEventListener('hashchange', () => {
+    showSection(initialSectionFromHash());
+  });
+}
+
+function closeDrawer() {
+  els.appShell.classList.remove('drawer-open');
+}
+
+function setNavCount(name, count) {
+  const node = document.querySelector(`.nav-count[data-count="${name}"]`);
+  if (node) node.textContent = count == null ? '—' : String(count);
 }
 
 els.refreshActiveRoomsBtn.addEventListener('click', loadActiveRooms);
@@ -656,8 +743,8 @@ async function openQuizEditor(quizId) {
   setMsg(els.editorRenameMsg, '');
   setMsg(els.categoryMsg, '');
   setMsg(els.qFormMsg, '');
-  els.editor.classList.add('open');
-  els.content.classList.add('editor-open');
+  showSection('quizzes');
+  els.quizzesSection.classList.add('editor-open');
   els.editorTitle.textContent = 'Loading…';
   els.editorMeta.textContent = '';
   els.editorRenameInput.value = '';
@@ -673,8 +760,7 @@ function closeQuizEditor() {
   editingQuiz = null;
   editingQuestionId = null;
   qFormState = freshQFormState();
-  els.editor.classList.remove('open');
-  els.content.classList.remove('editor-open');
+  els.quizzesSection.classList.remove('editor-open');
   loadQuizzes();
 }
 

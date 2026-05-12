@@ -10,12 +10,15 @@
       --bg: #1a1a2e;
       --bg-card: #16213e;
       --bg-card-2: #0f3460;
+      --bg-sidebar: #11182e;
       --accent: #e94560;
       --text: #eee;
       --text-dim: #aaa;
       --border: #2a3050;
       --green: #2ecc71;
       --gold: #ffd700;
+      --sidebar-w: 240px;
+      --topbar-h: 56px;
     }
 
     body {
@@ -23,29 +26,209 @@
       color: var(--text);
       font-family: system-ui, -apple-system, sans-serif;
       min-height: 100dvh;
-      padding: 1.5rem 1rem 3rem;
     }
 
-    .wrap { max-width: 720px; margin: 0 auto; }
+    /* ── App shell ───────────────────────────── */
 
-    .top {
-      display: flex; align-items: center; gap: 0.75rem;
-      margin-bottom: 1.25rem;
+    .app-shell {
+      display: flex;
+      min-height: 100dvh;
     }
-    .top a {
+
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 1rem 0.75rem;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      height: 100dvh;
+      overflow-y: auto;
+    }
+    .sidebar-header {
+      padding: 0.25rem 0.5rem 1rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.75rem;
+    }
+    .sidebar-header h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--accent);
+    }
+    .sidebar-header .subtitle {
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-top: 0.15rem;
+    }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      flex: 1;
+    }
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      width: 100%;
+      padding: 0.65rem 0.75rem;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.1s, color 0.1s;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .nav-btn:hover { background: var(--bg-card); color: var(--text); }
+    .nav-btn.active {
+      background: var(--bg-card);
+      color: var(--text);
+      border-color: var(--border);
+    }
+    .nav-btn .nav-icon {
+      width: 1.25rem;
+      text-align: center;
+      font-size: 1rem;
+    }
+    .nav-btn .nav-count {
+      margin-left: auto;
+      font-size: 0.72rem;
+      font-weight: 700;
+      background: var(--bg-card-2);
+      color: var(--text-dim);
+      padding: 0.1rem 0.45rem;
+      border-radius: 10px;
+      min-width: 1.5rem;
+      text-align: center;
+    }
+    .nav-btn.active .nav-count { background: var(--accent); color: #fff; }
+
+    .sidebar-footer {
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+    .sidebar-footer .me { margin-bottom: 0.4rem; }
+    .sidebar-footer .me .name { color: var(--text); font-weight: 700; display: block; }
+    .sidebar-footer a {
       color: var(--text-dim);
       text-decoration: none;
       font-size: 0.85rem;
     }
-    h1 {
-      font-size: 1.6rem;
-      font-weight: 800;
-      color: var(--accent);
-      margin-right: auto;
+    .sidebar-footer a:hover { color: var(--accent); }
+
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 8;
     }
 
-    .me { font-size: 0.85rem; color: var(--text-dim); }
-    .me .name { color: var(--text); font-weight: 700; }
+    .main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main-header {
+      display: none;
+      align-items: center;
+      gap: 0.6rem;
+      height: var(--topbar-h);
+      padding: 0 0.85rem;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .menu-toggle {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      width: 2.4rem;
+      height: 2.4rem;
+      border-radius: 8px;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: inherit;
+    }
+    .main-header h1 {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--accent);
+    }
+    .main-header .section-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-left: 0.5rem;
+    }
+
+    .main-content {
+      padding: 1.25rem 1.25rem 3rem;
+      flex: 1;
+      max-width: 960px;
+      width: 100%;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.85rem;
+      flex-wrap: wrap;
+    }
+    .section-head h2 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .section-head .section-meta {
+      font-size: 0.82rem;
+      color: var(--text-dim);
+    }
+
+    .app-section { display: none; }
+    .app-section.active { display: block; }
+
+    /* ── Mobile ─────────────────────────────── */
+
+    @media (max-width: 760px) {
+      .main-header { display: flex; }
+      .sidebar {
+        position: fixed;
+        top: 0; left: 0;
+        z-index: 9;
+        transform: translateX(-100%);
+        transition: transform 0.2s ease-out;
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
+      }
+      .app-shell.drawer-open .sidebar { transform: translateX(0); }
+      .app-shell.drawer-open .sidebar-backdrop { display: block; }
+      .main-content { padding: 1rem 0.85rem 2.5rem; }
+      .section-head h2 { font-size: 1.2rem; }
+    }
+
+    /* ── Forms / shared widgets ───────────── */
 
     .panel {
       background: var(--bg-card);
@@ -54,8 +237,8 @@
       padding: 1rem 1rem 1.25rem;
       margin-bottom: 1.25rem;
     }
-    .panel h2 {
-      font-size: 1rem;
+    .panel h3.panel-head {
+      font-size: 0.78rem;
       font-weight: 700;
       letter-spacing: 0.05em;
       text-transform: uppercase;
@@ -195,9 +378,10 @@
     }
     .quiz-create-row .input-field { flex: 1; min-width: 200px; }
 
+    /* Quiz editor takes over the Quizzes section content when open */
     .quiz-editor { display: none; }
-    .quiz-editor.open { display: block; }
-    #content.editor-open > .panel:not(.quiz-editor) { display: none; }
+    .app-section[data-section="quizzes"].editor-open .quiz-editor { display: block; }
+    .app-section[data-section="quizzes"].editor-open .quizzes-default { display: none; }
 
     .editor-head {
       display: flex;
@@ -422,131 +606,200 @@
   </style>
 </head>
 <body>
-  <div class="wrap" id="wrap">
-    <div class="top">
-      <h1>Admin Console</h1>
-      <div class="me" id="me"></div>
-      <a href="/">&larr; Home</a>
-    </div>
+  <div id="loading" class="empty" style="padding:3rem 1rem">Loading…</div>
 
-    <div id="loading" class="empty">Loading…</div>
+  <div class="app-shell" id="app-shell" style="display:none">
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h1>Triangle</h1>
+        <div class="subtitle">Admin Console</div>
+      </div>
+      <nav class="sidebar-nav" id="sidebar-nav">
+        <button class="nav-btn" data-section="users">
+          <span class="nav-icon">👥</span>
+          <span>Users</span>
+          <span class="nav-count" data-count="users">—</span>
+        </button>
+        <button class="nav-btn" data-section="quizzes">
+          <span class="nav-icon">📋</span>
+          <span>Quizzes</span>
+          <span class="nav-count" data-count="quizzes">—</span>
+        </button>
+        <button class="nav-btn" data-section="active-games">
+          <span class="nav-icon">🎮</span>
+          <span>Active Games</span>
+          <span class="nav-count" data-count="active-games">—</span>
+        </button>
+        <button class="nav-btn" data-section="games">
+          <span class="nav-icon">🏆</span>
+          <span>Games</span>
+          <span class="nav-count" data-count="games">—</span>
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="me" id="me"></div>
+        <a href="/">&larr; Back to Home</a>
+      </div>
+    </aside>
 
-    <div id="content" style="display:none">
-      <div class="panel quiz-editor" id="quiz-editor">
-        <div class="editor-head">
-          <span class="editor-title" id="editor-title">Quiz</span>
-          <button type="button" class="editor-back" id="editor-back">&larr; Back</button>
-        </div>
-        <div class="editor-meta" id="editor-meta"></div>
+    <main class="main">
+      <header class="main-header">
+        <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Open menu">&#9776;</button>
+        <h1>Triangle</h1>
+        <span class="section-title" id="mobile-section-title">Users</span>
+      </header>
 
-        <div class="editor-rename-row">
-          <input class="input-field" id="editor-rename-input" placeholder="Rename quiz" maxlength="80">
-          <button type="button" class="btn btn-secondary btn-small" id="editor-rename-btn">Save name</button>
-        </div>
-        <div id="editor-rename-msg" class="msg"></div>
-
-        <div class="editor-section">
-          <div class="editor-section-head">Categories</div>
-          <ul class="category-list" id="category-list"></ul>
-          <div class="quiz-create-row">
-            <input class="input-field" id="new-category-name" placeholder="New category name" maxlength="60">
-            <button type="button" class="btn btn-secondary btn-small" id="new-category-btn">+ Add</button>
+      <div class="main-content" id="content">
+        <!-- Users section -->
+        <section class="app-section" data-section="users">
+          <div class="section-head">
+            <h2>Users</h2>
+            <span class="section-meta" id="users-section-meta"></span>
           </div>
-          <div id="category-msg" class="msg"></div>
-        </div>
 
-        <div class="editor-section">
-          <div class="editor-section-head">Questions</div>
-          <ul class="question-list" id="question-list"></ul>
-        </div>
+          <div class="panel">
+            <h3 class="panel-head">Register New User</h3>
+            <form id="register-form" class="form-grid">
+              <input class="input-field" name="displayName" placeholder="Display name" required autocomplete="off">
+              <input class="input-field" name="email" type="email" placeholder="Email" required autocomplete="off">
+              <input class="input-field" name="password" type="text" placeholder="Password (min 6 chars)" required autocomplete="new-password">
+              <label class="checkbox-row full">
+                <input type="checkbox" name="isAdmin"> Make this user an admin
+              </label>
+              <button type="submit" class="btn btn-primary full">Create User</button>
+            </form>
+            <div id="register-msg" class="msg"></div>
+          </div>
 
-        <div class="editor-section">
-          <div class="editor-section-head" id="q-form-head">Add Question</div>
-          <div class="q-form">
-            <label for="q-prompt">Prompt</label>
-            <textarea class="textarea-field" id="q-prompt" placeholder="What is 2 + 2?" maxlength="500"></textarea>
+          <div class="panel">
+            <h3 class="panel-head">All Users</h3>
+            <ul class="user-list" id="user-list"></ul>
+            <div id="users-msg" class="msg"></div>
+          </div>
+        </section>
 
-            <label for="q-category">Category</label>
-            <select class="input-field" id="q-category"></select>
-
-            <label for="q-type">Answer type</label>
-            <select class="input-field" id="q-type">
-              <option value="free">Free type</option>
-              <option value="single">Single choice</option>
-              <option value="multiple">Multiple choice</option>
-            </select>
-
-            <div id="q-free-area">
-              <label for="q-free-answers">Accepted answers (one per line, case-insensitive)</label>
-              <textarea class="textarea-field" id="q-free-answers" placeholder="4&#10;four"></textarea>
+        <!-- Quizzes section -->
+        <section class="app-section" data-section="quizzes">
+          <div class="quizzes-default">
+            <div class="section-head">
+              <h2>Quizzes</h2>
+              <span class="section-meta" id="quizzes-section-meta"></span>
             </div>
 
-            <div id="q-choice-area" style="display:none">
-              <label>Options (mark the correct one)</label>
-              <div id="q-options"></div>
-              <button type="button" class="btn btn-secondary btn-small" id="q-add-option" style="margin-top:0.4rem">+ Add option</button>
+            <div class="panel" id="quizzes-panel">
+              <h3 class="panel-head">Create Quiz</h3>
+              <div class="quiz-create-row">
+                <input class="input-field" id="new-quiz-name" placeholder="New quiz name" maxlength="80">
+                <button type="button" class="btn btn-primary btn-small" id="new-quiz-btn">Create Quiz</button>
+              </div>
+              <div id="quizzes-msg" class="msg"></div>
             </div>
 
-            <div id="q-form-msg" class="msg"></div>
-            <div class="q-form-buttons">
-              <button type="button" class="btn btn-secondary btn-small" id="q-cancel-btn" style="display:none">Cancel</button>
-              <button type="button" class="btn btn-primary btn-small" id="q-save-btn">Add Question</button>
+            <div class="panel">
+              <h3 class="panel-head">All Quizzes</h3>
+              <ul class="user-list" id="quiz-list"></ul>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div class="panel">
-        <h2>Register New User</h2>
-        <form id="register-form" class="form-grid">
-          <input class="input-field" name="displayName" placeholder="Display name" required autocomplete="off">
-          <input class="input-field" name="email" type="email" placeholder="Email" required autocomplete="off">
-          <input class="input-field" name="password" type="text" placeholder="Password (min 6 chars)" required autocomplete="new-password">
-          <label class="checkbox-row full">
-            <input type="checkbox" name="isAdmin"> Make this user an admin
-          </label>
-          <button type="submit" class="btn btn-primary full">Create User</button>
-        </form>
-        <div id="register-msg" class="msg"></div>
-      </div>
+          <div class="panel quiz-editor" id="quiz-editor">
+            <div class="editor-head">
+              <span class="editor-title" id="editor-title">Quiz</span>
+              <button type="button" class="editor-back" id="editor-back">&larr; Back</button>
+            </div>
+            <div class="editor-meta" id="editor-meta"></div>
 
-      <div class="panel">
-        <h2>Users</h2>
-        <ul class="user-list" id="user-list"></ul>
-        <div id="users-msg" class="msg"></div>
-      </div>
+            <div class="editor-rename-row">
+              <input class="input-field" id="editor-rename-input" placeholder="Rename quiz" maxlength="80">
+              <button type="button" class="btn btn-secondary btn-small" id="editor-rename-btn">Save name</button>
+            </div>
+            <div id="editor-rename-msg" class="msg"></div>
 
-      <div class="panel" id="quizzes-panel">
-        <h2>Quizzes</h2>
-        <ul class="user-list" id="quiz-list"></ul>
-        <div class="quiz-create-row">
-          <input class="input-field" id="new-quiz-name" placeholder="New quiz name" maxlength="80">
-          <button type="button" class="btn btn-primary btn-small" id="new-quiz-btn">Create Quiz</button>
-        </div>
-        <div id="quizzes-msg" class="msg"></div>
-      </div>
+            <div class="editor-section">
+              <div class="editor-section-head">Categories</div>
+              <ul class="category-list" id="category-list"></ul>
+              <div class="quiz-create-row">
+                <input class="input-field" id="new-category-name" placeholder="New category name" maxlength="60">
+                <button type="button" class="btn btn-secondary btn-small" id="new-category-btn">+ Add</button>
+              </div>
+              <div id="category-msg" class="msg"></div>
+            </div>
 
-      <div class="panel">
-        <h2>Active Games</h2>
-        <ul class="user-list" id="active-room-list"></ul>
-        <div class="user-actions" style="margin-top:0.5rem">
-          <button type="button" class="btn btn-secondary btn-small" id="refresh-active-rooms-btn">Refresh</button>
-        </div>
-        <div id="active-rooms-msg" class="msg"></div>
-      </div>
+            <div class="editor-section">
+              <div class="editor-section-head">Questions</div>
+              <ul class="question-list" id="question-list"></ul>
+            </div>
 
-      <div class="panel">
-        <h2>Games</h2>
-        <ul class="user-list" id="game-list"></ul>
-        <div id="games-msg" class="msg"></div>
-      </div>
-    </div>
+            <div class="editor-section">
+              <div class="editor-section-head" id="q-form-head">Add Question</div>
+              <div class="q-form">
+                <label for="q-prompt">Prompt</label>
+                <textarea class="textarea-field" id="q-prompt" placeholder="What is 2 + 2?" maxlength="500"></textarea>
 
-    <div id="denied" class="access-denied" style="display:none">
-      <h1 style="margin-bottom:0.5rem">Access denied</h1>
-      <p>You need to be an admin to view this page.</p>
-      <p style="margin-top:1rem"><a href="/">Back to home</a></p>
-    </div>
+                <label for="q-category">Category</label>
+                <select class="input-field" id="q-category"></select>
+
+                <label for="q-type">Answer type</label>
+                <select class="input-field" id="q-type">
+                  <option value="free">Free type</option>
+                  <option value="single">Single choice</option>
+                  <option value="multiple">Multiple choice</option>
+                </select>
+
+                <div id="q-free-area">
+                  <label for="q-free-answers">Accepted answers (one per line, case-insensitive)</label>
+                  <textarea class="textarea-field" id="q-free-answers" placeholder="4&#10;four"></textarea>
+                </div>
+
+                <div id="q-choice-area" style="display:none">
+                  <label>Options (mark the correct one)</label>
+                  <div id="q-options"></div>
+                  <button type="button" class="btn btn-secondary btn-small" id="q-add-option" style="margin-top:0.4rem">+ Add option</button>
+                </div>
+
+                <div id="q-form-msg" class="msg"></div>
+                <div class="q-form-buttons">
+                  <button type="button" class="btn btn-secondary btn-small" id="q-cancel-btn" style="display:none">Cancel</button>
+                  <button type="button" class="btn btn-primary btn-small" id="q-save-btn">Add Question</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Active Games section -->
+        <section class="app-section" data-section="active-games">
+          <div class="section-head">
+            <h2>Active Games</h2>
+            <button type="button" class="btn btn-secondary btn-small" id="refresh-active-rooms-btn">Refresh</button>
+          </div>
+
+          <div class="panel">
+            <ul class="user-list" id="active-room-list"></ul>
+            <div id="active-rooms-msg" class="msg"></div>
+          </div>
+        </section>
+
+        <!-- Games section -->
+        <section class="app-section" data-section="games">
+          <div class="section-head">
+            <h2>Games</h2>
+            <span class="section-meta" id="games-section-meta"></span>
+          </div>
+
+          <div class="panel">
+            <ul class="user-list" id="game-list"></ul>
+            <div id="games-msg" class="msg"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div id="denied" class="access-denied" style="display:none">
+    <h1 style="margin-bottom:0.5rem">Access denied</h1>
+    <p>You need to be an admin to view this page.</p>
+    <p style="margin-top:1rem"><a href="/">Back to home</a></p>
   </div>
 
   <script type="module" src="./main.js"></script>
