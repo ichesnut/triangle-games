@@ -965,14 +965,23 @@ function handleRoundResult(msg) {
 
   document.getElementById('vote-info').textContent = '';
 
-  // If quiz is exhausted, hide Next and rename it
   const nextBtn = document.getElementById('next-round-btn');
-  if (msg.hasMoreQuestions === false) {
-    nextBtn.textContent = 'See Final Scores';
-  } else {
-    nextBtn.textContent = 'Next Question';
-  }
+  const nextHint = document.getElementById('next-round-hint');
+  const finalRound = msg.hasMoreQuestions === false;
+  nextBtn.textContent = finalRound ? 'See Final Scores' : 'Next Question';
   nextBtn.disabled = false;
+
+  // Only the host (game creator) can advance the game.
+  nextBtn.hidden = !isHost;
+  if (isHost) {
+    nextHint.hidden = true;
+    nextHint.textContent = '';
+  } else {
+    nextHint.hidden = false;
+    nextHint.textContent = finalRound
+      ? 'Waiting for the host to end the game…'
+      : 'Waiting for the host to start the next question…';
+  }
 
   showScreen('result');
 }
@@ -1301,6 +1310,7 @@ document.getElementById('copy-link-btn').addEventListener('click', () => {
 });
 
 document.getElementById('next-round-btn').addEventListener('click', () => {
+  if (!isHost) return;
   document.getElementById('next-round-btn').disabled = true;
   send({ type: 'next_round' });
 });

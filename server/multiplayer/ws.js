@@ -339,6 +339,7 @@ export function attachWebSocketServer(httpServer, sessionParser) {
           const room = getRoom(currentRoom);
           if (!room) { sendError(ws, 'Not in a room'); return; }
           if (room.state !== 'playing') { sendError(ws, 'No active game'); return; }
+          if (room.hostUserId !== participantId) { sendError(ws, 'Only the host can advance to the next question'); return; }
 
           if (!hasMoreQuestions(room)) {
             const gameResult = endGameAndRecord(room);
