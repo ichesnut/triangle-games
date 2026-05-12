@@ -1,6 +1,11 @@
 # Build stage
 FROM node:22-slim AS build
 
+# git is needed by scripts/generate-deploy-info.mjs (prebuild) to read
+# commit metadata for the deploy banner. The build stage is discarded,
+# so this does not affect the final image size.
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./
