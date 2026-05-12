@@ -160,8 +160,8 @@
       background: transparent;
       border: 1px solid var(--border);
       color: var(--text);
-      width: 2.4rem;
-      height: 2.4rem;
+      width: 2.75rem;
+      height: 2.75rem;
       border-radius: 8px;
       font-size: 1.2rem;
       cursor: pointer;
@@ -170,7 +170,7 @@
       justify-content: center;
       font-family: inherit;
     }
-    .main-header h1 {
+    .main-header .brand {
       font-size: 1rem;
       font-weight: 800;
       color: var(--accent);
@@ -187,6 +187,7 @@
       flex: 1;
       max-width: 960px;
       width: 100%;
+      margin: 0 auto;
     }
 
     .section-head {
@@ -645,8 +646,8 @@
 
     <main class="main">
       <header class="main-header">
-        <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Open menu">&#9776;</button>
-        <h1>Triangle</h1>
+        <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar">&#9776;</button>
+        <span class="brand" aria-hidden="true">Triangle</span>
         <span class="section-title" id="mobile-section-title">Users</span>
       </header>
 
