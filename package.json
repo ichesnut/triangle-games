@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/generate-deploy-info.mjs",
     "dev": "concurrently \"vite\" \"node server/index.js\"",
+    "predev:client": "node scripts/generate-deploy-info.mjs",
     "dev:client": "vite",
     "dev:server": "node server/index.js",
+    "prebuild": "node scripts/generate-deploy-info.mjs",
     "build": "vite build",
     "start": "node server/index.js",
     "preview": "vite preview",
