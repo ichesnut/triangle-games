@@ -94,10 +94,8 @@
     }
     .btn-danger { background: #6b1f2f; color: #fff; border: 1px solid #8a2937; }
     .btn-small { padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; max-width: none; }
-    .btn-row { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 360px; }
-    .btn-row .btn { flex: 1; }
 
-    .input-field, .textarea-field, .select-field {
+    .input-field {
       width: 100%;
       max-width: 360px;
       padding: 0.65rem 0.9rem;
@@ -110,11 +108,8 @@
       box-sizing: border-box;
       font-family: inherit;
     }
-    .textarea-field { min-height: 4rem; resize: vertical; }
-    .input-field::placeholder, .textarea-field::placeholder { color: #666; }
-    .input-field:focus, .textarea-field:focus, .select-field:focus {
-      outline: none; border-color: var(--accent);
-    }
+    .input-field::placeholder { color: #666; }
+    .input-field:focus { outline: none; border-color: var(--accent); }
 
     .error-msg {
       color: var(--accent);
@@ -183,169 +178,6 @@
     .quiz-row .quiz-meta { font-size: 0.8rem; color: var(--text-dim); margin-right: 0.5rem; }
 
     .empty-state { color: var(--text-dim); padding: 1rem; text-align: center; font-size: 0.9rem; }
-
-    /* Quiz editor */
-    .question-list {
-      width: 100%;
-      max-width: 420px;
-      list-style: none;
-      padding: 0;
-      margin: 0 0 1rem;
-    }
-    .question-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 0.75rem 0.85rem;
-      margin-bottom: 0.6rem;
-    }
-    .question-head {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      margin-bottom: 0.4rem;
-    }
-    .question-pos {
-      background: var(--accent);
-      color: #fff;
-      width: 1.4rem; height: 1.4rem;
-      border-radius: 50%;
-      display: inline-flex; align-items: center; justify-content: center;
-      font-size: 0.75rem; font-weight: 800;
-      flex: 0 0 auto;
-    }
-    .question-type-tag {
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      background: var(--bg-card-2);
-      color: var(--text-dim);
-      padding: 0.15rem 0.45rem;
-      border-radius: 4px;
-    }
-    .question-prompt { font-size: 0.95rem; margin-bottom: 0.35rem; }
-    .question-answers { font-size: 0.8rem; color: var(--text-dim); }
-    .question-actions {
-      display: flex; gap: 0.35rem; margin-top: 0.5rem; flex-wrap: wrap;
-    }
-    .icon-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-dim);
-      min-width: var(--tap); min-height: var(--tap);
-      display: inline-flex; align-items: center; justify-content: center;
-      border-radius: 6px;
-      cursor: pointer; font-size: 1.25rem; line-height: 1;
-    }
-    .icon-btn:active { transform: scale(0.92); }
-
-    /* Category management */
-    .cat-section {
-      width: 100%;
-      max-width: 420px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 0.75rem 0.85rem;
-      margin-bottom: 1rem;
-    }
-    .cat-section-head {
-      font-size: 0.85rem;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-    }
-    .category-list { list-style: none; padding: 0; margin: 0 0 0.5rem; }
-    .category-row {
-      display: flex; align-items: center; gap: 0.35rem;
-      padding: 0.4rem 0.5rem;
-      background: var(--bg-card-2);
-      border-radius: 8px;
-      margin-bottom: 0.35rem;
-      font-size: 0.9rem;
-    }
-    .category-row .cat-name { flex: 1; font-weight: 600; }
-    .category-row input.cat-name-input {
-      flex: 1;
-      background: var(--bg-card);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 0.3rem 0.5rem;
-      font-size: 0.9rem;
-      font-family: inherit;
-    }
-    .cat-add-row { display: flex; gap: 0.4rem; align-items: center; }
-    .cat-add-row .input-field { margin-bottom: 0; flex: 1; }
-    .cat-empty { color: var(--text-dim); font-size: 0.85rem; padding: 0.25rem 0 0.5rem; }
-
-    /* Question list group headers */
-    .question-group-head {
-      font-size: 0.78rem;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      font-weight: 700;
-      margin: 0.5rem 0 0.35rem;
-      padding-left: 0.25rem;
-    }
-    .question-category-tag {
-      font-size: 0.7rem;
-      font-weight: 600;
-      color: var(--text-dim);
-      background: var(--bg-card-2);
-      border-radius: 4px;
-      padding: 0.1rem 0.4rem;
-      margin-left: auto;
-    }
-
-    /* Add/Edit question form */
-    .q-form {
-      width: 100%;
-      max-width: 420px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 0.85rem;
-      margin-bottom: 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-    }
-    .q-form label {
-      font-size: 0.85rem;
-      color: var(--text-dim);
-      margin-top: 0.15rem;
-    }
-    .option-row {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .option-row .input-field { margin-bottom: 0; flex: 1; max-width: none; }
-    .option-row input[type=checkbox], .option-row input[type=radio] { transform: scale(1.2); }
-    .option-row .drag-handle {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-dim);
-      min-width: var(--tap); min-height: var(--tap);
-      display: inline-flex; align-items: center; justify-content: center;
-      border-radius: 6px;
-      cursor: grab;
-      touch-action: none;
-      font-size: 1rem;
-      flex: 0 0 auto;
-      user-select: none;
-    }
-    .option-row .drag-handle:active { cursor: grabbing; }
-    .option-row.dragging {
-      opacity: 0.7;
-      background: var(--bg-card-2);
-      border-radius: 6px;
-    }
 
     /* Lobby */
     .room-code {
@@ -639,72 +471,10 @@
       <button class="btn btn-primary" id="create-btn">Create Game</button>
       <input class="input-field" id="join-code-input" placeholder="Enter room code" maxlength="4" style="text-transform:uppercase">
       <button class="btn btn-secondary" id="join-btn">Join Game</button>
-      <button class="btn btn-secondary" id="manage-quizzes-btn" style="margin-top:0.75rem">Manage Quizzes</button>
     </div>
     <div class="error-msg" id="menu-error"></div>
     <a href="#" class="back-home" id="switch-user-link" style="margin-top:1.25rem">Switch user</a>
     <a href="/" class="back-home" style="margin-top:0.5rem">Back to Games</a>
-  </div>
-
-  <!-- Quizzes Screen -->
-  <div class="screen" id="quizzes-screen">
-    <button class="back-link" data-target="menu">&larr; Back</button>
-    <h2>Your Quizzes</h2>
-    <ul class="quiz-list" id="quiz-list"></ul>
-    <input class="input-field" id="new-quiz-name" placeholder="New quiz name">
-    <button class="btn btn-primary" id="new-quiz-btn">Create Quiz</button>
-    <div class="error-msg" id="quizzes-error"></div>
-  </div>
-
-  <!-- Quiz Editor Screen -->
-  <div class="screen" id="quiz-editor-screen">
-    <button class="back-link" id="quiz-editor-back">&larr; Back to Quizzes</button>
-    <h2 id="quiz-editor-title">Quiz</h2>
-    <p class="subtitle" id="quiz-editor-meta"></p>
-
-    <div class="cat-section">
-      <div class="cat-section-head">Categories</div>
-      <ul class="category-list" id="category-list"></ul>
-      <div class="cat-add-row">
-        <input class="input-field" id="new-category-name" placeholder="New category name" maxlength="60">
-        <button class="btn btn-secondary btn-small" id="new-category-btn">+ Add</button>
-      </div>
-      <div class="error-msg" id="category-error"></div>
-    </div>
-
-    <ul class="question-list" id="question-list"></ul>
-
-    <div class="q-form" id="q-form">
-      <label>Question prompt</label>
-      <textarea class="textarea-field" id="q-prompt" placeholder="What is 2 + 2?"></textarea>
-
-      <label>Category</label>
-      <select class="select-field" id="q-category"></select>
-
-      <label>Answer type</label>
-      <select class="select-field" id="q-type">
-        <option value="free">Free type</option>
-        <option value="single">Single choice</option>
-        <option value="multiple">Multiple choice</option>
-      </select>
-
-      <div id="q-free-area">
-        <label>Accepted answers (one per line, case-insensitive)</label>
-        <textarea class="textarea-field" id="q-free-answers" placeholder="4&#10;four"></textarea>
-      </div>
-
-      <div id="q-choice-area" style="display:none">
-        <label>Options (mark the correct one)</label>
-        <div id="q-options"></div>
-        <button type="button" class="btn btn-secondary btn-small" id="q-add-option" style="margin-top:0.25rem">+ Add option</button>
-      </div>
-
-      <div class="error-msg" id="q-form-error"></div>
-      <div class="btn-row">
-        <button class="btn btn-secondary" id="q-cancel-btn" style="display:none">Cancel</button>
-        <button class="btn btn-primary" id="q-save-btn">Add Question</button>
-      </div>
-    </div>
   </div>
 
   <!-- Lobby -->
