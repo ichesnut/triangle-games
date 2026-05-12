@@ -1106,6 +1106,22 @@ function renderQForm() {
   els.qCancelBtn.style.display = editingQuestionId ? '' : 'none';
 }
 
+function moveOption(from, to) {
+  const opts = qFormState.options;
+  if (from === to || from < 0 || to < 0 || from >= opts.length || to >= opts.length) return;
+  const [moved] = opts.splice(from, 1);
+  opts.splice(to, 0, moved);
+  qFormState.correctAnswers = qFormState.correctAnswers
+    .map(k => {
+      if (k === from) return to;
+      if (from < to && k > from && k <= to) return k - 1;
+      if (from > to && k >= to && k < from) return k + 1;
+      return k;
+    })
+    .sort((a, b) => a - b);
+  renderOptions();
+}
+
 function renderOptions() {
   els.qOptions.innerHTML = '';
   qFormState.options.forEach((opt, idx) => {
@@ -1113,12 +1129,20 @@ function renderOptions() {
     row.className = 'option-row';
     const inputType = qFormState.type === 'multiple' ? 'checkbox' : 'radio';
     const checked = qFormState.correctAnswers.includes(idx);
+    const isFirst = idx === 0;
+    const isLast = idx === qFormState.options.length - 1;
     row.innerHTML = `
       <input type="${inputType}" name="q-correct" ${checked ? 'checked' : ''}>
       <input type="text" class="input-field" placeholder="Option ${idx + 1}">
-      <button type="button" class="icon-btn" title="Remove">&times;</button>
+      <button type="button" class="icon-btn" data-act="up" title="Move up" aria-label="Move option up" ${isFirst ? 'disabled' : ''}>&uarr;</button>
+      <button type="button" class="icon-btn" data-act="down" title="Move down" aria-label="Move option down" ${isLast ? 'disabled' : ''}>&darr;</button>
+      <button type="button" class="icon-btn" data-act="remove" title="Remove" aria-label="Remove option">&times;</button>
     `;
-    const [check, text, remove] = row.children;
+    const check = row.children[0];
+    const text = row.children[1];
+    const upBtn = row.querySelector('[data-act="up"]');
+    const downBtn = row.querySelector('[data-act="down"]');
+    const remove = row.querySelector('[data-act="remove"]');
     text.value = opt;
     const currentIdx = () => [...els.qOptions.children].indexOf(row);
     text.addEventListener('input', () => { qFormState.options[currentIdx()] = text.value; });
@@ -1133,6 +1157,8 @@ function renderOptions() {
       }
       if (qFormState.type === 'single') renderOptions();
     });
+    upBtn.addEventListener('click', () => moveOption(currentIdx(), currentIdx() - 1));
+    downBtn.addEventListener('click', () => moveOption(currentIdx(), currentIdx() + 1));
     remove.addEventListener('click', () => {
       if (qFormState.options.length <= 2) return;
       const i = currentIdx();
