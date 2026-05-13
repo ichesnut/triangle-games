@@ -261,6 +261,12 @@ test('TRI-140: 50 concurrent users complete a 20-question Quiz Battle without me
     ).all(game.id);
     assert.equal(guestPlayerRows.length, guestIds.length,
       `expected ${guestIds.length} guest player rows, got ${guestPlayerRows.length}`);
+    // Count alone misses "one guest dropped, another's row duplicated"-shape
+    // bugs — verify the full set of guest ids landed in the table.
+    assert.deepEqual(
+      guestPlayerRows.map(r => r.guestId).sort((a, b) => a - b),
+      [...guestIds].sort((a, b) => a - b),
+    );
 
     const roundRows = db.prepare(
       'SELECT roundNumber FROM math_battle_rounds WHERE gameId = ?'
