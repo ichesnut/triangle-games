@@ -297,7 +297,6 @@ els.quizList.addEventListener('click', async (e) => {
   setMsg(els.quizzesMsg, '');
   try {
     if (act === 'archive') {
-      if (!confirm('Archive this quiz? Players will no longer see it.')) return;
       await fetchJson(`${API}/admin/quizzes/${id}/archive`, { method: 'POST' });
     } else if (act === 'unarchive') {
       await fetchJson(`${API}/admin/quizzes/${id}/unarchive`, { method: 'POST' });
@@ -717,7 +716,6 @@ els.gameList.addEventListener('click', async (e) => {
   setMsg(els.gamesMsg, '');
   try {
     if (act === 'archive-game') {
-      if (!confirm('Archive this game? It will be hidden from the games list.')) return;
       await fetchJson(`${API}/admin/games/${id}/archive`, { method: 'POST' });
     } else {
       await fetchJson(`${API}/admin/games/${id}/unarchive`, { method: 'POST' });
@@ -782,7 +780,6 @@ els.list.addEventListener('click', async (e) => {
     } else if (act === 'enable') {
       await fetchJson(`${API}/admin/users/${id}/enable`, { method: 'POST' });
     } else if (act === 'archive') {
-      if (!confirm('Archive this user? They will not be able to log in and will be marked as archived.')) return;
       await fetchJson(`${API}/admin/users/${id}/archive`, { method: 'POST' });
     } else if (act === 'unarchive') {
       await fetchJson(`${API}/admin/users/${id}/unarchive`, { method: 'POST' });
