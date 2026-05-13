@@ -445,6 +445,58 @@ router.post('/active-rooms/:code/end', requireAdmin, (req, res) => {
   }
 });
 
+// POST /users/:id/impersonate — start impersonating another user (TRI-146).
+// Swaps session.userId to the target so every existing gate (requireAdmin,
+// isAdminSession, quiz ownership, WS auth) treats this session as the target.
+// The original admin id is preserved in session.impersonatorId so /stop can
+// restore it. Nesting is disallowed so a stop call always restores the
+// original admin.
+router.post('/users/:id/impersonate', requireAdmin, (req, res) => {
+  const targetId = parseInt(req.params.id, 10);
+  if (!Number.isInteger(targetId)) return res.status(400).json({ error: 'Invalid user id' });
+
+  if (req.session.impersonatorId) {
+    return res.status(400).json({ error: 'Stop impersonating first' });
+  }
+  if (targetId === req.session.userId) {
+    return res.status(400).json({ error: 'You cannot impersonate yourself' });
+  }
+
+  const target = db.prepare(
+    'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, isAdmin, disabledAt, archivedAt, createdAt FROM users WHERE id = ?'
+  ).get(targetId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (target.disabledAt) return res.status(400).json({ error: 'Cannot impersonate a disabled user' });
+  if (target.archivedAt) return res.status(400).json({ error: 'Cannot impersonate an archived user' });
+
+  const impersonator = db.prepare(
+    'SELECT id, displayName FROM users WHERE id = ?'
+  ).get(req.session.userId);
+
+  req.session.impersonatorId = req.session.userId;
+  req.session.userId = target.id;
+  // Drop the cached isAdmin lookup so any handlers that share this request
+  // don't keep the impersonator's privilege.
+  delete req._isAdminCache;
+
+  console.log(`[impersonate] admin ${impersonator.id} → user ${target.id}`);
+
+  res.json({
+    user: {
+      id: target.id,
+      email: target.email,
+      displayName: target.displayName,
+      chesnutBalance: target.chesnutBalance,
+      currentStreak: target.currentStreak,
+      bestStreak: target.bestStreak,
+      isAdmin: !!target.isAdmin,
+      isGuest: false,
+      createdAt: target.createdAt,
+    },
+    impersonator: { id: impersonator.id, displayName: impersonator.displayName },
+  });
+});
+
 // POST /users/:id/admin — set admin flag
 router.post('/users/:id/admin', requireAdmin, (req, res) => {
   const userId = parseInt(req.params.id, 10);

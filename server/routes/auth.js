@@ -54,7 +54,7 @@ router.get('/me', (req, res) => {
     ).get(req.session.userId);
 
     if (user && !user.disabledAt && !user.archivedAt) {
-      return res.json({
+      const body = {
         user: {
           ...user,
           isAdmin: !!user.isAdmin,
@@ -62,7 +62,16 @@ router.get('/me', (req, res) => {
           disabledAt: undefined,
           archivedAt: undefined,
         },
-      });
+      };
+      // While impersonating, surface the original admin so the client can
+      // render the global "Impersonating … · Stop" banner (TRI-146).
+      if (req.session.impersonatorId) {
+        const imp = db.prepare(
+          'SELECT id, displayName FROM users WHERE id = ?'
+        ).get(req.session.impersonatorId);
+        if (imp) body.impersonator = { id: imp.id, displayName: imp.displayName };
+      }
+      return res.json(body);
     }
     req.session.destroy(() => {});
     return res.json({ user: null });
@@ -133,6 +142,7 @@ router.post('/register', (req, res) => {
 
   req.session.userId = newUserId;
   delete req.session.guestId;
+  delete req.session.impersonatorId;
 
   const user = db.prepare(
     'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, isAdmin, createdAt FROM users WHERE id = ?'
@@ -168,6 +178,7 @@ router.post('/login', (req, res) => {
 
   req.session.userId = user.id;
   delete req.session.guestId;
+  delete req.session.impersonatorId;
 
   // Re-read so any streak fields lifted from the merged guest are returned.
   const fresh = db.prepare(
@@ -230,9 +241,52 @@ router.post('/guest', (req, res) => {
   }
 
   delete req.session.userId;
+  delete req.session.impersonatorId;
   req.session.guestId = guest.id;
 
   res.json({ user: shapeGuest(guest) });
+});
+
+// POST /stop-impersonating — restore the original admin session (TRI-146).
+// Mounted outside `requireAdmin` so it works even if the effective user (the
+// target) isn't an admin. Idempotency does NOT extend to "no active
+// impersonation" — a 400 keeps the contract honest.
+router.post('/stop-impersonating', (req, res) => {
+  if (!req.session?.impersonatorId) {
+    return res.status(400).json({ error: 'Not impersonating' });
+  }
+
+  const admin = db.prepare(
+    'SELECT id, email, displayName, chesnutBalance, currentStreak, bestStreak, isAdmin, disabledAt, archivedAt, createdAt FROM users WHERE id = ?'
+  ).get(req.session.impersonatorId);
+
+  // The admin was archived/disabled mid-impersonation: drop them back to
+  // their original id but blow away the session — /me will return null and
+  // they will be logged out cleanly.
+  if (!admin || admin.disabledAt || admin.archivedAt) {
+    req.session.destroy(() => {});
+    return res.status(400).json({ error: 'Original admin is no longer active' });
+  }
+
+  console.log(`[impersonate] stop: admin ${admin.id} restored`);
+
+  req.session.userId = admin.id;
+  delete req.session.impersonatorId;
+  delete req._isAdminCache;
+
+  res.json({
+    user: {
+      id: admin.id,
+      email: admin.email,
+      displayName: admin.displayName,
+      chesnutBalance: admin.chesnutBalance,
+      currentStreak: admin.currentStreak,
+      bestStreak: admin.bestStreak,
+      isAdmin: !!admin.isAdmin,
+      isGuest: false,
+      createdAt: admin.createdAt,
+    },
+  });
 });
 
 // Logout
