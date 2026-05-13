@@ -947,6 +947,120 @@ test('POST /quizzes/:id/unarchive 404 unknown quiz', async () => {
 // "seed admin" tier: a user promoted via POST /users/:id/admin must be able
 // to reach every requireAdmin-gated route the seed admin can.
 
+// ── Impersonation (TRI-146) ───────────────────────────
+
+test('POST /users/:id/impersonate 401 without session', async () => {
+  const res = await request('POST', `/api/admin/users/${userId}/impersonate`);
+  assert.equal(res.status, 401);
+});
+
+test('POST /users/:id/impersonate 403 when caller is not admin', async () => {
+  asUser();
+  const res = await request('POST', `/api/admin/users/${adminId}/impersonate`);
+  assert.equal(res.status, 403);
+});
+
+test('POST /users/:id/impersonate swaps session.userId, sets impersonatorId, returns target + impersonator', async () => {
+  asAdmin();
+  const res = await request('POST', `/api/admin/users/${userId}/impersonate`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.user.id, userId);
+  assert.equal(res.body.user.email, 'user@x.io');
+  assert.equal(res.body.user.isAdmin, false);
+  assert.equal(res.body.user.isGuest, false);
+  assert.equal(res.body.impersonator.id, adminId);
+  assert.equal(res.body.impersonator.displayName, 'Admin');
+  assert.equal(session.userId, userId);
+  assert.equal(session.impersonatorId, adminId);
+});
+
+test('POST /users/:id/impersonate works against another admin', async () => {
+  const second = db.prepare(
+    'INSERT INTO users (email, passwordHash, displayName, isAdmin) VALUES (?, ?, ?, 1)'
+  ).run('admin2@x.io', 'h', 'Admin2').lastInsertRowid;
+  asAdmin();
+  const res = await request('POST', `/api/admin/users/${second}/impersonate`);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.user.id, second);
+  assert.equal(res.body.user.isAdmin, true);
+  assert.equal(session.userId, second);
+  assert.equal(session.impersonatorId, adminId);
+});
+
+test('POST /users/:id/impersonate 400 on self-impersonation', async () => {
+  asAdmin();
+  const res = await request('POST', `/api/admin/users/${adminId}/impersonate`);
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /yourself/i);
+  // Session must not have been swapped.
+  assert.equal(session.userId, adminId);
+  assert.equal(session.impersonatorId, undefined);
+});
+
+test('POST /users/:id/impersonate 404 when target does not exist', async () => {
+  asAdmin();
+  const res = await request('POST', '/api/admin/users/99999/impersonate');
+  assert.equal(res.status, 404);
+});
+
+test('POST /users/:id/impersonate 400 when target is disabled', async () => {
+  db.prepare("UPDATE users SET disabledAt = datetime('now') WHERE id = ?").run(userId);
+  asAdmin();
+  const res = await request('POST', `/api/admin/users/${userId}/impersonate`);
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /disabled/i);
+});
+
+test('POST /users/:id/impersonate 400 when target is archived', async () => {
+  db.prepare("UPDATE users SET archivedAt = datetime('now') WHERE id = ?").run(userId);
+  asAdmin();
+  const res = await request('POST', `/api/admin/users/${userId}/impersonate`);
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /archived/i);
+});
+
+test('POST /users/:id/impersonate 400 when already impersonating (nesting forbidden)', async () => {
+  // Pre-stage active impersonation where the effective user is another admin
+  // — only this path could otherwise pass `requireAdmin` and reach the
+  // nesting guard. (If the effective user is non-admin, requireAdmin's 403
+  // is the actual nesting defense — covered by the SECURITY test above.)
+  const second = db.prepare(
+    'INSERT INTO users (email, passwordHash, displayName, isAdmin) VALUES (?, ?, ?, 1)'
+  ).run('admin2@x.io', 'h', 'Admin2').lastInsertRowid;
+  session.userId = second;
+  session.impersonatorId = adminId;
+
+  const res = await request('POST', `/api/admin/users/${userId}/impersonate`);
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /Stop impersonating first/i);
+  // Session unchanged.
+  assert.equal(session.userId, second);
+  assert.equal(session.impersonatorId, adminId);
+});
+
+test('SECURITY: while admin impersonates a non-admin, admin endpoints return 403 (TRI-146)', async () => {
+  asAdmin();
+  // Start impersonation: server flips session.userId to the non-admin target.
+  const imp = await request('POST', `/api/admin/users/${userId}/impersonate`);
+  assert.equal(imp.status, 200);
+  assert.equal(session.userId, userId);
+
+  // Now exercise representative admin routes. Every one MUST 403 because the
+  // effective session belongs to a non-admin — even though impersonatorId
+  // still points at the admin.
+  const probes = [
+    ['GET',  '/api/admin/users'],
+    ['GET',  '/api/admin/quizzes'],
+    ['GET',  '/api/admin/games'],
+    ['GET',  '/api/admin/active-rooms'],
+    ['POST', `/api/admin/users/${adminId}/impersonate`],
+  ];
+  for (const [method, path] of probes) {
+    const res = await request(method, path);
+    assert.equal(res.status, 403, `${method} ${path} must 403 while impersonating a non-admin`);
+  }
+});
+
 test('a newly-promoted admin can reach the same admin endpoints as the seed admin (TRI-131)', async () => {
   // Promote the second user, then act as them.
   asAdmin();

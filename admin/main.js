@@ -172,6 +172,11 @@ function renderUsers(users, emptyMsg = 'No users to show.') {
     const actions = [];
     actions.push(`<button class="btn btn-secondary btn-small" data-act="pwd" data-id="${u.id}">Change Password</button>`);
     if (!isMe) {
+      // Impersonate is offered only for non-self, non-disabled, non-archived
+      // users — matches the server-side guards in POST /users/:id/impersonate.
+      if (!disabled && !archived) {
+        actions.push(`<button class="btn btn-secondary btn-small" data-act="impersonate" data-id="${u.id}">Impersonate</button>`);
+      }
       actions.push(`<button class="btn btn-secondary btn-small" data-act="admin" data-id="${u.id}" data-val="${u.isAdmin ? 0 : 1}">${u.isAdmin ? 'Revoke Admin' : 'Make Admin'}</button>`);
       if (disabled) {
         actions.push(`<button class="btn btn-success btn-small" data-act="enable" data-id="${u.id}">Re-enable</button>`);
@@ -774,7 +779,11 @@ els.list.addEventListener('click', async (e) => {
   setMsg(els.usersMsg, '');
 
   try {
-    if (act === 'disable') {
+    if (act === 'impersonate') {
+      await fetchJson(`${API}/admin/users/${id}/impersonate`, { method: 'POST' });
+      window.location.href = '/';
+      return;
+    } else if (act === 'disable') {
       if (!confirm('Disable this user? They will not be able to log in.')) return;
       await fetchJson(`${API}/admin/users/${id}/disable`, { method: 'POST' });
     } else if (act === 'enable') {

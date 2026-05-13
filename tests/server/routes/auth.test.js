@@ -394,3 +394,95 @@ test('POST /logout: clears session and returns ok', async () => {
   assert.equal(res.body.ok, true);
   assert.equal(session.userId, undefined);
 });
+
+// ── Impersonation (TRI-146) ─────────────────────────────
+
+test('GET /me includes impersonator field when actively impersonating', async () => {
+  const admin = seedUser({ email: 'imp-admin@x.io', displayName: 'Administa', isAdmin: 1 });
+  const target = seedUser({ email: 'imp-target@x.io', displayName: 'Targetina' });
+  session.userId = target.id;
+  session.impersonatorId = admin.id;
+
+  const res = await request('GET', '/api/auth/me');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.user.id, target.id);
+  assert.equal(res.body.user.displayName, 'Targetina');
+  assert.ok(res.body.impersonator, '/me should expose the impersonator block');
+  assert.equal(res.body.impersonator.id, admin.id);
+  assert.equal(res.body.impersonator.displayName, 'Administa');
+});
+
+test('GET /me does NOT include impersonator field when not impersonating', async () => {
+  const u = seedUser({ email: 'plain@x.io' });
+  session.userId = u.id;
+  const res = await request('GET', '/api/auth/me');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.impersonator, undefined);
+});
+
+test('POST /stop-impersonating: 400 when no impersonation is active', async () => {
+  const u = seedUser({ email: 'noop@x.io' });
+  session.userId = u.id;
+  const res = await request('POST', '/api/auth/stop-impersonating');
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /Not impersonating/);
+});
+
+test('POST /stop-impersonating: restores admin session and clears impersonatorId', async () => {
+  const admin = seedUser({ email: 'stop-admin@x.io', displayName: 'StopAdmin', isAdmin: 1 });
+  const target = seedUser({ email: 'stop-target@x.io', displayName: 'StopTarget' });
+  session.userId = target.id;
+  session.impersonatorId = admin.id;
+
+  const res = await request('POST', '/api/auth/stop-impersonating');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.user.id, admin.id);
+  assert.equal(res.body.user.isAdmin, true);
+  assert.equal(session.userId, admin.id);
+  assert.equal(session.impersonatorId, undefined);
+});
+
+test('POST /stop-impersonating: destroys session if original admin is archived', async () => {
+  const admin = seedUser({
+    email: 'gone-admin@x.io', displayName: 'Gone', isAdmin: 1,
+    archivedAt: '2026-01-01 00:00:00',
+  });
+  const target = seedUser({ email: 'gone-target@x.io' });
+  session.userId = target.id;
+  session.impersonatorId = admin.id;
+
+  const res = await request('POST', '/api/auth/stop-impersonating');
+  assert.equal(res.status, 400);
+  assert.equal(session.userId, undefined);
+  assert.equal(session.impersonatorId, undefined);
+});
+
+test('POST /login clears prior session.impersonatorId', async () => {
+  // A stale impersonatorId could otherwise bleed across re-logins.
+  const u = seedUser({ email: 'relogin@x.io' });
+  session.impersonatorId = 999;
+  const res = await request('POST', '/api/auth/login', {
+    email: 'relogin@x.io', password: 'secret123',
+  });
+  assert.equal(res.status, 200);
+  assert.equal(session.impersonatorId, undefined);
+});
+
+test('POST /register clears prior session.impersonatorId', async () => {
+  session.impersonatorId = 999;
+  const res = await request('POST', '/api/auth/register', {
+    email: 'firstreg@x.io', password: 'secret123', displayName: 'F',
+  });
+  assert.equal(res.status, 201);
+  assert.equal(session.impersonatorId, undefined);
+});
+
+test('POST /guest clears prior session.impersonatorId', async () => {
+  session.impersonatorId = 999;
+  const res = await request('POST', '/api/auth/guest', {
+    guestToken: 'imp-clear-guest-token',
+    displayName: 'GuestX',
+  });
+  assert.equal(res.status, 200);
+  assert.equal(session.impersonatorId, undefined);
+});
